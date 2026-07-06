@@ -1,0 +1,33 @@
+# EditorConfig — Antifraude ACME
+# https://editorconfig.org · complementa `dotnet format`
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml,csproj,props,targets}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+# Namespaces file-scoped
+csharp_style_namespace_declarations = file_scoped:warning
+# usings
+dotnet_sort_system_directives_first = true
+csharp_using_directive_placement = outside_namespace:warning
+# var
+csharp_style_var_when_type_is_apparent = true:suggestion
+# Expression-bodied members
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+# this. desnecessário
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+# Chaves obrigatórias
+csharp_prefer_braces = true:warning

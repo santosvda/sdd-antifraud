@@ -1,0 +1,47 @@
+# .NET build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+build/
+publish/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider / Visual Studio
+.vs/
+.idea/
+*.DotSettings.user
+
+# Test / coverage results
+[Tt]est[Rr]esult*/
+coverage/
+*.coverage
+*.coveragexml
+coverage.cobertura.xml
+coverage.opencover.xml
+TestResults/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Environment / secrets — .env.example IS committed, real .env is NOT
+.env
+.env.local
+*.env
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-Antifraude.Worker-f2b1f680-3a98-48ce-ae0a-ab8fccb0225e</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Antifraude.Core\Antifraude.Core.csproj" />
+    <ProjectReference Include="..\Antifraude.Infra\Antifraude.Infra.csproj" />
+  </ItemGroup>
+</Project>

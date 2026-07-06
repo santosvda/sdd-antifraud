@@ -1,0 +1,21 @@
+# Não copiar artefatos de build do host para a imagem — o restore acontece no container.
+**/bin/
+**/obj/
+**/out/
+**/publish/
+
+# Segredos e ambiente local
+.env
+*.env
+!.env.example
+
+# Git / IDE / docs que não afetam o build
+.git/
+.gitignore
+.vs/
+.idea/
+.claude/
+openspec/
+*.md
+TestResults/
+coverage/

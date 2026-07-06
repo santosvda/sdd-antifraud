@@ -1,0 +1,30 @@
+name: CI
+
+# CI mínimo: build + testes em cada PR contra main. PR não é apto a merge se falhar.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore Antifraude.sln
+
+      - name: Build
+        run: dotnet build Antifraude.sln --configuration Release --no-restore
+
+      # O runner do GitHub Actions traz Docker — os testes de integração
+      # (Testcontainers: MySQL + LocalStack) rodam aqui.
+      - name: Test
+        run: dotnet test Antifraude.sln --configuration Release --no-build --verbosity normal

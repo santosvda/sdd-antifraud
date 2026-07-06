@@ -1,0 +1,22 @@
+# Build do Worker — multi-stage. SDK compila; runtime (sem ASP.NET) roda o BackgroundService.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY Antifraude.sln ./
+COPY src/Antifraude.Core/Antifraude.Core.csproj src/Antifraude.Core/
+COPY src/Antifraude.Infra/Antifraude.Infra.csproj src/Antifraude.Infra/
+COPY src/Antifraude.Api/Antifraude.Api.csproj src/Antifraude.Api/
+COPY src/Antifraude.Worker/Antifraude.Worker.csproj src/Antifraude.Worker/
+COPY tests/Antifraude.Tests/Antifraude.Tests.csproj tests/Antifraude.Tests/
+RUN dotnet restore src/Antifraude.Worker/Antifraude.Worker.csproj
+
+COPY . .
+RUN dotnet publish src/Antifraude.Worker/Antifraude.Worker.csproj -c Release -o /app --no-restore
+
+FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
+# procps para o healthcheck de liveness do processo (pgrep).
+RUN apt-get update && apt-get install -y --no-install-recommends procps \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=build /app ./
+ENTRYPOINT ["dotnet", "Antifraude.Worker.dll"]

@@ -1,0 +1,84 @@
+# Ambiente completo da fundação antifraude: um `docker compose up --build` sobe tudo.
+# api + worker + mysql + localstack, com healthchecks e migrations no start.
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  localstack:
+    image: localstack/localstack:3
+    environment:
+      SERVICES: sqs
+      DEBUG: "0"
+    ports:
+      - "4566:4566"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      MYSQL_CONNECTION_STRING: ${MYSQL_CONNECTION_STRING}
+      SQS_SERVICE_URL: ${SQS_SERVICE_URL}
+      SQS_QUEUE_NAME: ${SQS_QUEUE_NAME}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      MYSQL_CONNECTION_STRING: ${MYSQL_CONNECTION_STRING}
+      SQS_SERVICE_URL: ${SQS_SERVICE_URL}
+      SQS_QUEUE_NAME: ${SQS_QUEUE_NAME}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      MOCK_SCORE_PROVIDER_INDISPONIVEL: ${MOCK_SCORE_PROVIDER_INDISPONIVEL:-false}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      # Liveness do processo: o dotnet do worker está rodando.
+      test: ["CMD-SHELL", "pgrep -f Antifraude.Worker || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  mysql-data:
