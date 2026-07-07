@@ -53,7 +53,7 @@
 ## 8. Repositório e CI
 
 - [x] 8.1 Criar workflow GitHub Actions rodando `dotnet build` + `dotnet test` em cada PR
-- [ ] 8.2 Criar repo remoto: `gh repo create acme-antifraude --private --source=. --remote=origin --push` com default `main`
+- [x] 8.2 Repo remoto provisionado via fork: `origin` = `santosvda/antiFraude` (fork de `upstream` `danielhs73/antiFraude`, default `main`); branch `bootstrap-foundation` pushada para `origin`
 
 ## 9. Documentação
 
