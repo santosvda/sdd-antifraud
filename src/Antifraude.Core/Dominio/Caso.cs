@@ -28,5 +28,8 @@ public sealed class Caso
     /// <summary>True quando os sinais chegaram faltantes/parciais.</summary>
     public bool DadosIncompletos { get; init; }
 
+    /// <summary>True quando o payload de ingestão veio incompleto (campos não-estruturais ausentes).</summary>
+    public bool PayloadParcial { get; init; }
+
     public DateTimeOffset CriadoEm { get; init; }
 }

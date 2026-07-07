@@ -13,10 +13,21 @@ public sealed class SqsOptions
 
     public string QueueName { get; set; } = "sinistros";
 
+    /// <summary>Fila de erro técnico (DLQ aplicacional): eventos não-processáveis + escalonamento.</summary>
+    public string ErrorQueueName { get; set; } = "sinistros-erro-tecnico";
+
     public string AccessKey { get; set; } = "test";
 
     public string SecretKey { get; set; } = "test";
 
     /// <summary>Segundos de long-poll no recebimento (0–20).</summary>
     public int WaitTimeSeconds { get; set; } = 20;
+
+    /// <summary>Backoff entre tentativas de enfileiramento (~1s/4s/16s, ~21s total). Configurável p/ testes.</summary>
+    public IReadOnlyList<TimeSpan> Backoffs { get; set; } =
+    [
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(4),
+        TimeSpan.FromSeconds(16),
+    ];
 }

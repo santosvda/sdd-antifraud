@@ -71,9 +71,9 @@ public sealed class Worker(
                 await queue.DeleteAsync(recebido.ReceiptHandle, ct);
 
                 logger.LogInformation(
-                    "Caso persistido. estado={Estado} faixa={Faixa} rota={Rota} score={Score} versaoConfig={VersaoConfig} versaoProvider={VersaoProvider}",
+                    "Caso persistido. estado={Estado} faixa={Faixa} rota={Rota} score={Score} versaoConfig={VersaoConfig} versaoProvider={VersaoProvider} payloadParcial={PayloadParcial}",
                     resultado.Caso.Estado, resultado.Caso.Faixa, resultado.Caso.Rota,
-                    resultado.Caso.Score, resultado.Caso.VersaoConfig, resultado.Caso.VersaoProvider);
+                    resultado.Caso.Score, resultado.Caso.VersaoConfig, resultado.Caso.VersaoProvider, resultado.Caso.PayloadParcial);
             }
             catch (Exception ex)
             {

@@ -28,7 +28,7 @@ public sealed class MockScoreProvider(MockScoreProviderOptions options) : IScore
 
         // Soma ponderada placeholder: peso da config × intensidade do sinal.
         double bruto = 0;
-        foreach (var sinal in sinistro.Sinais)
+        foreach (var sinal in sinistro.Sinais ?? [])
         {
             if (config.Pesos.TryGetValue(sinal.Nome, out var peso))
             {

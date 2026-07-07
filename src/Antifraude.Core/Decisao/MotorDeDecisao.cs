@@ -104,6 +104,7 @@ public sealed class MotorDeDecisao(
             VersaoConfig = versaoConfig,
             VersaoProvider = scoreProvider.Versao,
             DadosIncompletos = dadosIncompletos,
+            PayloadParcial = sinistro.PayloadParcial,
             CriadoEm = agora,
         };
 
@@ -119,6 +120,7 @@ public sealed class MotorDeDecisao(
             VersaoProvider = scoreProvider.Versao,
             Causa = causa,
             Ator = Ator,
+            PayloadParcial = sinistro.PayloadParcial,
             CarimbadoEm = agora,
         };
 

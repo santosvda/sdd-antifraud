@@ -8,7 +8,7 @@ namespace Antifraude.Tests.Unit;
 public sealed class MotorDeDecisaoTests
 {
     private static Sinistro ComSinais() =>
-        new(Guid.NewGuid(), [new Sinal("reuso_imagem", 1.0, "mock")]);
+        new(Guid.NewGuid(), "SIN-1", Sinais: [new Sinal("reuso_imagem", 1.0, "mock")]);
 
     private static MotorDeDecisao Motor(int score = 0, bool provedorCai = false, ScoringConfig? config = null) =>
         new(new FakeConfigRepository(config ?? FakeConfigRepository.ConfigPadrao),
@@ -72,7 +72,7 @@ public sealed class MotorDeDecisaoTests
     [Fact]
     public async Task Sinais_faltantes_geram_fail_open_com_dados_incompletos()
     {
-        var sinistro = new Sinistro(Guid.NewGuid(), []);
+        var sinistro = new Sinistro(Guid.NewGuid(), "SIN-2", Sinais: []);
 
         var r = await Motor(score: 90).AvaliarAsync(sinistro);
 

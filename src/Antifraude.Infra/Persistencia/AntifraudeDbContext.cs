@@ -18,6 +18,10 @@ public sealed class AntifraudeDbContext(DbContextOptions<AntifraudeDbContext> op
 
     public DbSet<RegistroAuditoria> Auditoria => Set<RegistroAuditoria>();
 
+    public DbSet<RegistroIngestao> AuditoriaIngestao => Set<RegistroIngestao>();
+
+    public DbSet<SinistroProcessado> SinistrosProcessados => Set<SinistroProcessado>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -34,6 +38,7 @@ public sealed class AntifraudeDbContext(DbContextOptions<AntifraudeDbContext> op
             e.Property(c => c.VersaoConfig).HasColumnName("versao_config");
             e.Property(c => c.VersaoProvider).HasColumnName("versao_provider").HasMaxLength(60);
             e.Property(c => c.DadosIncompletos).HasColumnName("dados_incompletos");
+            e.Property(c => c.PayloadParcial).HasColumnName("payload_parcial");
             e.Property(c => c.CriadoEm).HasColumnName("criado_em");
         });
 
@@ -88,8 +93,37 @@ public sealed class AntifraudeDbContext(DbContextOptions<AntifraudeDbContext> op
             e.Property(a => a.VersaoProvider).HasColumnName("versao_provider").HasMaxLength(60);
             e.Property(a => a.Causa).HasColumnName("causa").HasMaxLength(1000);
             e.Property(a => a.Ator).HasColumnName("ator").HasMaxLength(60);
+            e.Property(a => a.PayloadParcial).HasColumnName("payload_parcial");
             e.Property(a => a.CarimbadoEm).HasColumnName("carimbado_em");
             e.HasIndex(a => a.CaseId).HasDatabaseName("ix_auditoria_case_id");
+        });
+
+        modelBuilder.Entity<RegistroIngestao>(e =>
+        {
+            e.ToTable("auditoria_ingestao");
+            e.HasKey(a => a.Id);
+            e.Property(a => a.Id).HasColumnName("id");
+            e.Property(a => a.CaseId).HasColumnName("case_id");
+            e.Property(a => a.IdSinistro).HasColumnName("id_sinistro").HasMaxLength(100);
+            e.Property(a => a.TemApolice).HasColumnName("tem_apolice");
+            e.Property(a => a.TemAparelho).HasColumnName("tem_aparelho");
+            e.Property(a => a.TemFotos).HasColumnName("tem_fotos");
+            e.Property(a => a.TemMetadados).HasColumnName("tem_metadados");
+            e.Property(a => a.PayloadParcial).HasColumnName("payload_parcial");
+            e.Property(a => a.Idempotencia).HasColumnName("idempotencia").HasConversion<string>().HasMaxLength(30);
+            e.Property(a => a.Destino).HasColumnName("destino").HasConversion<string>().HasMaxLength(30);
+            e.Property(a => a.RecebidoEm).HasColumnName("recebido_em");
+            e.HasIndex(a => a.CaseId).HasDatabaseName("ix_auditoria_ingestao_case_id");
+            e.HasIndex(a => a.IdSinistro).HasDatabaseName("ix_auditoria_ingestao_id_sinistro");
+        });
+
+        modelBuilder.Entity<SinistroProcessado>(e =>
+        {
+            e.ToTable("sinistros_processados");
+            e.HasKey(s => s.IdSinistro);
+            e.Property(s => s.IdSinistro).HasColumnName("id_sinistro").HasMaxLength(100);
+            e.Property(s => s.PrimeiraVezEm).HasColumnName("primeira_vez_em");
+            e.HasIndex(s => s.PrimeiraVezEm).HasDatabaseName("ix_sinistros_processados_primeira_vez_em");
         });
     }
 }

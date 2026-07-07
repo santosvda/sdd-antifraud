@@ -34,5 +34,8 @@ public sealed class RegistroAuditoria
     /// <summary>Ator responsável pela decisão (ex.: <c>worker</c>).</summary>
     public string Ator { get; init; } = string.Empty;
 
+    /// <summary>True quando o payload de ingestão veio incompleto (herdado do sinistro).</summary>
+    public bool PayloadParcial { get; init; }
+
     public DateTimeOffset CarimbadoEm { get; init; }
 }

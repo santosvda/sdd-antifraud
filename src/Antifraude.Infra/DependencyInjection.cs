@@ -30,6 +30,8 @@ public static class DependencyInjection
         services.AddScoped<ICaseRepository, CaseRepository>();
         services.AddScoped<IScoringConfigRepository, ScoringConfigRepository>();
         services.AddScoped<IAuditLog, AuditLog>();
+        services.AddScoped<IAuditLogIngestao, AuditLogIngestao>();
+        services.AddScoped<ISinistroDedupStore, SinistroDedupStore>();
 
         // Provider de score: mock sinalizado nesta fundação (fatia 1 troca a implementação).
         var mockOptions = new MockScoreProviderOptions
@@ -50,6 +52,7 @@ public static class DependencyInjection
             ServiceUrl = config["SQS_SERVICE_URL"],
             Region = config["AWS_REGION"] ?? "us-east-1",
             QueueName = config["SQS_QUEUE_NAME"] ?? "sinistros",
+            ErrorQueueName = config["SQS_ERROR_QUEUE_NAME"] ?? $"{config["SQS_QUEUE_NAME"] ?? "sinistros"}-erro-tecnico",
             AccessKey = config["AWS_ACCESS_KEY_ID"] ?? "test",
             SecretKey = config["AWS_SECRET_ACCESS_KEY"] ?? "test",
         };

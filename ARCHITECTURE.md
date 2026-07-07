@@ -37,12 +37,38 @@ API e Worker **não se chamam direto** — conversam pela **fila** (entrada) e p
 > do `IScoreProvider` pelo motor determinístico (fatia 1) ou por ML (roadmap) não toca no
 > resto. Os testes unitários do `Core` rodam sem subir nada.
 
+## Ingestão real do sinistro (Feature 2.1)
+
+A borda recebe o **payload de sinistro real** (não mais um `sinais[]` placeholder):
+`idSinistro` (único campo estrutural), `apolice`, `aparelho` (IMEI/série), `fotos` (por
+referência), `metadados`. A ingestão é idempotente e resiliente:
+
+- **Idempotência** — `POST /sinistros` checa o `idSinistro` num store de dedup
+  (`sinistros_processados`, tabela MySQL, TTL de 24h) antes de enfileirar; duplicado dentro da
+  janela é descartado com log. Se o store cai, é **fail-open** (processa + alerta). Purga
+  periódica via `PurgaDedupService`.
+- **Payload parcial** — falta de qualquer campo exceto `idSinistro` não bloqueia: o caso segue
+  marcado como `payloadParcial`.
+- **Fila de erro técnico** — evento sem `idSinistro` (não-processável) → `202` + fila de erro
+  técnico (nunca `400`; o sinistro já existe no sistema principal). Só corpo ilegível vira `400`.
+- **Retry/backoff** — o enfileiramento tenta com backoff (~1s/4s/16s); esgotado, escala para a
+  fila de erro técnico. Se o broker está totalmente fora, a API responde `503` (exceção
+  deliberada: força o produtor a reenviar).
+- **Auditoria da ingestão** — tabela append-only `auditoria_ingestao` (mesmos triggers de
+  imutabilidade) registra completude do payload, resultado da idempotência e destino do
+  roteamento.
+
+> Enquanto a coleta de sinais (2.2) não existe, os sinistros chegam **sem sinais** e o
+> `MotorDeDecisao` os roteia via fail-open para `PendenteRevisaoManual` — o fluxo ponta a
+> ponta segue íntegro.
+
 ## Fluxo ponta a ponta
 
-1. **`POST /sinistros`** (`Api/Program.cs`) — valida o payload na borda, gera o `caseId`,
-   publica o sinistro no SQS e responde `202 Accepted`. Nunca decide o mérito.
-2. **SQS (LocalStack)** — desacopla recepção de processamento. Fila criada de forma
-   idempotente no bootstrap.
+1. **`POST /sinistros`** (`Api/Program.cs`) — valida o formato mínimo, aplica idempotência,
+   gera o `caseId`, publica o sinistro no SQS (com retry) e responde `202 Accepted`. Nunca
+   decide o mérito.
+2. **SQS (LocalStack)** — duas filas (processamento + erro técnico) criadas de forma
+   idempotente no bootstrap. Desacopla recepção de processamento.
 3. **Worker** (`Worker/Worker.cs`) — long-poll na fila; para cada sinistro roda o
    `MotorDeDecisao`.
 4. **`MotorDeDecisao`** (`Core/Decisao/MotorDeDecisao.cs`) — resolve a `scoring_config`
