@@ -13,9 +13,11 @@ public interface IScoreProvider
     string Versao { get; }
 
     /// <summary>
-    /// Calcula o score [0,100] a partir dos sinais e da config ativa. Pode lançar
-    /// (ex.: indisponibilidade) — o Worker captura e aplica fail-open; a porta não
-    /// esconde a falha.
+    /// Avalia o sinistro a partir dos sinais e da config ativa, devolvendo um
+    /// <see cref="ResultadoScore"/> estruturado (score, cobertura parcial, sinais usados/ausentes,
+    /// motivo de "não avaliado", atributos proibidos filtrados). Pode lançar (ex.:
+    /// indisponibilidade) — o Worker captura e aplica fail-open; a porta não esconde a falha.
+    /// Nunca fabrica score: cobertura insuficiente devolve <see cref="ResultadoScore.Score"/> null.
     /// </summary>
-    Task<int> CalcularScoreAsync(Sinistro sinistro, ScoringConfig config, CancellationToken ct = default);
+    Task<ResultadoScore> CalcularScoreAsync(Sinistro sinistro, ScoringConfig config, CancellationToken ct = default);
 }

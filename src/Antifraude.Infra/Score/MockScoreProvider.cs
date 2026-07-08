@@ -16,7 +16,7 @@ public sealed class MockScoreProvider(MockScoreProviderOptions options) : IScore
 {
     public string Versao => "mock-v1";
 
-    public Task<int> CalcularScoreAsync(Sinistro sinistro, ScoringConfig config, CancellationToken ct = default)
+    public Task<ResultadoScore> CalcularScoreAsync(Sinistro sinistro, ScoringConfig config, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(sinistro);
         ArgumentNullException.ThrowIfNull(config);
@@ -28,15 +28,23 @@ public sealed class MockScoreProvider(MockScoreProviderOptions options) : IScore
 
         // Soma ponderada placeholder: peso da config × intensidade do sinal.
         double bruto = 0;
+        var usados = new List<string>();
         foreach (var sinal in sinistro.Sinais ?? [])
         {
             if (config.Pesos.TryGetValue(sinal.Nome, out var peso))
             {
                 bruto += peso * sinal.Valor;
+                usados.Add(sinal.Nome);
             }
         }
 
         var score = (int)Math.Round(Math.Clamp(bruto, 0, 100));
-        return Task.FromResult(score);
+        return Task.FromResult(new ResultadoScore(
+            Score: score,
+            CoberturaParcial: false,
+            SinaisUsados: usados,
+            SinaisAusentes: [],
+            MotivoNaoAvaliado: null,
+            AtributosProibidosFiltrados: []));
     }
 }
