@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Console de Sinistros — Motor Antifraude</title>
+  <meta name="color-scheme" content="light dark" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>📡</text></svg>" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Barra de instrumento -->
+  <header class="barra">
+    <div class="marca">
+      <span class="marca-glifo" aria-hidden="true"></span>
+      <span class="marca-nome">CONSOLE DE SINISTROS</span>
+      <span class="marca-sub">motor antifraude · cliente de operação e QA</span>
+    </div>
+    <div class="barra-instrumentos">
+      <span id="badge-ambiente" class="badge" title="Ambiente-alvo desta API">ambiente: —</span>
+      <span id="saude" class="saude" data-estado="checando" title="Saúde da API">
+        <span class="saude-lampada" aria-hidden="true"></span>
+        <span class="saude-texto">verificando…</span>
+      </span>
+      <button id="btn-tema" class="btn-icone" type="button" aria-label="Alternar tema claro/escuro">◐</button>
+    </div>
+  </header>
+
+  <!-- Aviso de conectividade -->
+  <div id="aviso-offline" class="aviso oculto" role="alert">
+    <strong>API não encontrada.</strong> Rode <code>docker compose up</code> e recarregue a página.
+  </div>
+
+  <main class="bancada">
+    <!-- Painel de controle -->
+    <section class="painel painel-controle" aria-labelledby="tit-controle">
+      <h2 id="tit-controle" class="eyebrow">Painel de controle</h2>
+
+      <div class="grupo">
+        <span class="rotulo">Cenários</span>
+        <div id="cenarios" class="chips" role="group" aria-label="Cenários pré-montados"></div>
+        <p id="dica-cenario" class="dica oculto"></p>
+      </div>
+
+      <form id="form-sinistro" class="grupo form" autocomplete="off">
+        <label class="campo">
+          <span>idSinistro <em class="req" title="Único campo estrutural">estrutural</em></span>
+          <input type="text" id="idSinistro" name="idSinistro" placeholder="SIN-…" />
+        </label>
+        <label class="campo">
+          <span>apólice</span>
+          <input type="text" id="apolice" name="apolice" placeholder="AP-…" />
+        </label>
+        <div class="campo-duplo">
+          <label class="campo">
+            <span>aparelho · IMEI</span>
+            <input type="text" id="imei" name="imei" placeholder="35678910…" />
+          </label>
+          <label class="campo">
+            <span>aparelho · nº série</span>
+            <input type="text" id="numeroSerie" name="numeroSerie" placeholder="SN-…" />
+          </label>
+        </div>
+        <label class="campo">
+          <span>fotos <em class="hint">referências (URL/ID), uma por linha</em></span>
+          <textarea id="fotos" name="fotos" rows="2" placeholder="img://repo/1&#10;img://repo/2"></textarea>
+        </label>
+        <div class="campo-triplo">
+          <label class="campo">
+            <span>metadados · abertoEm</span>
+            <input type="text" id="abertoEm" name="abertoEm" placeholder="ISO 8601" />
+          </label>
+          <label class="campo">
+            <span>canal</span>
+            <input type="text" id="canal" name="canal" placeholder="app" />
+          </label>
+          <label class="campo">
+            <span>idCliente</span>
+            <input type="text" id="idCliente" name="idCliente" placeholder="CLI-…" />
+          </label>
+        </div>
+        <button id="btn-enviar" class="btn-primario" type="submit">Enviar sinistro</button>
+      </form>
+
+      <div class="grupo">
+        <span class="rotulo">Histórico da sessão</span>
+        <ul id="historico" class="historico" aria-live="polite">
+          <li class="historico-vazio">Nenhum envio ainda.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Readout -->
+    <section class="painel painel-readout" aria-labelledby="tit-readout">
+      <h2 id="tit-readout" class="eyebrow">Readout</h2>
+
+      <div id="vazio" class="vazio">
+        <span class="vazio-glifo" aria-hidden="true"></span>
+        <p>Envie um sinistro para ver o ciclo.</p>
+        <p class="vazio-nota">O resultado é sempre <strong>“aceito para análise humana”</strong> — nunca um veredito de fraude.</p>
+      </div>
+
+      <div id="resultado" class="resultado oculto">
+        <!-- Comprovante -->
+        <article id="comprovante" class="cartao comprovante">
+          <div class="comprovante-topo">
+            <span id="comprovante-status" class="pill">—</span>
+            <span id="comprovante-titulo" class="comprovante-titulo">—</span>
+          </div>
+          <dl class="kv">
+            <div><dt>caseId</dt><dd id="cv-caseid" class="mono">—</dd></div>
+            <div><dt>idempotência</dt><dd id="cv-idem">—</dd></div>
+            <div><dt>destino</dt><dd id="cv-destino">—</dd></div>
+            <div><dt>payload</dt><dd id="cv-parcial">—</dd></div>
+          </dl>
+        </article>
+
+        <!-- Traço de sinal (stepper) -->
+        <div class="traco" role="img" aria-label="Progresso do sinistro pelo pipeline">
+          <ol id="stepper" class="stepper">
+            <li class="etapa" data-etapa="recebido"><span class="ponto"></span><span class="etapa-nome">Recebido</span><span class="etapa-detalhe"></span></li>
+            <li class="etapa" data-etapa="ingestao"><span class="ponto"></span><span class="etapa-nome">Ingestão</span><span class="etapa-detalhe"></span></li>
+            <li class="etapa" data-etapa="worker"><span class="ponto"></span><span class="etapa-nome">Worker</span><span class="etapa-detalhe"></span></li>
+            <li class="etapa" data-etapa="caso"><span class="ponto"></span><span class="etapa-nome">Caso</span><span class="etapa-detalhe"></span></li>
+          </ol>
+          <p id="traco-mensagem" class="traco-mensagem"></p>
+        </div>
+
+        <!-- Cartão do caso -->
+        <article id="cartao-caso" class="cartao caso oculto">
+          <div class="caso-estado">
+            <span class="eyebrow">Estado</span>
+            <strong id="caso-estado-valor">—</strong>
+            <span class="caso-frase">aceito — encaminhado para análise humana</span>
+          </div>
+          <div class="priorizacao">
+            <span class="eyebrow">Sinais de priorização</span>
+            <dl class="kv kv-inline">
+              <div><dt>faixa</dt><dd id="caso-faixa">—</dd></div>
+              <div><dt>rota</dt><dd id="caso-rota">—</dd></div>
+              <div><dt>score</dt><dd id="caso-score" class="mono">—</dd></div>
+              <div><dt>provider</dt><dd id="caso-provider" class="mono">—</dd></div>
+            </dl>
+          </div>
+          <div id="trilhas" class="trilhas"></div>
+        </article>
+
+        <!-- Detalhes técnicos -->
+        <details id="detalhes" class="detalhes">
+          <summary>Detalhes técnicos</summary>
+          <div class="detalhes-corpo">
+            <div class="bloco-cru">
+              <span class="rotulo">Requisição · POST /sinistros</span>
+              <pre id="cru-req" class="cru"></pre>
+            </div>
+            <div class="bloco-cru">
+              <span class="rotulo">Resposta · POST</span>
+              <pre id="cru-post" class="cru"></pre>
+            </div>
+            <div class="bloco-cru">
+              <span class="rotulo">Resposta · GET /casos/{caseId}</span>
+              <pre id="cru-get" class="cru"></pre>
+            </div>
+          </div>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -42,6 +42,11 @@ services:
       AWS_REGION: ${AWS_REGION}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      # Console de Sinistros: default local (livre) para a demo subir ligada. O default seguro
+      # do código (desabilitado fora de Development) segue valendo em outros deploys.
+      CONSOLE_AMBIENTE: ${CONSOLE_AMBIENTE:-local}
+      CONSOLE_MODO: ${CONSOLE_MODO:-local}
+      CONSOLE_CREDENCIAIS: ${CONSOLE_CREDENCIAIS:-}
     ports:
       - "8080:8080"
     depends_on:

@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Antifraude.Api.Contratos;
 using Antifraude.Core.Dominio;
 using Antifraude.Core.Portas;
@@ -21,11 +23,56 @@ var app = builder.Build();
 // Migrations + filas aplicadas no start, ANTES de aceitar tráfego / ficar healthy.
 await InicializarAsync(app);
 
+// Gate de acesso do Console (feature de operação/QA), governado por ambiente e default seguro.
+// Cobre APENAS o Console estático (wwwroot) e o GET /casos de leitura. NÃO cobre /health (o
+// healthcheck do container faz curl sem credencial) nem POST /sinistros (API real de ingestão)
+// nem /swagger. modo: local (livre) | compartilhado (Basic auth) | desabilitado (fecha).
+var consoleModo = (app.Configuration["CONSOLE_MODO"]
+    ?? (app.Environment.IsDevelopment() ? "local" : "desabilitado")).Trim().ToLowerInvariant();
+var consoleCredenciais = app.Configuration["CONSOLE_CREDENCIAIS"]; // "usuario:senha" p/ modo compartilhado
+
+app.Use(async (ctx, next) =>
+{
+    var path = ctx.Request.Path.Value ?? "/";
+    var liberado = path.StartsWith("/health", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("/sinistros", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase);
+
+    if (liberado || consoleModo == "local")
+    {
+        await next();
+        return;
+    }
+
+    if (consoleModo == "compartilhado")
+    {
+        if (BasicAuthValida(ctx.Request, consoleCredenciais))
+        {
+            await next();
+            return;
+        }
+
+        ctx.Response.Headers.WWWAuthenticate = "Basic realm=\"Console de Sinistros\"";
+        ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return;
+    }
+
+    // desabilitado (ou valor desconhecido → seguro): endpoint de leitura 403, Console 404.
+    ctx.Response.StatusCode = path.StartsWith("/casos", StringComparison.OrdinalIgnoreCase)
+        ? StatusCodes.Status403Forbidden
+        : StatusCodes.Status404NotFound;
+});
+
+// Console de Sinistros (front de operação/QA) servido da própria origem — sem CORS.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// GET /health — liveness/readiness. Só responde 200 depois do InicializarAsync acima.
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
+// GET /health — liveness/readiness + nome do ambiente (badge do Console). Sempre liberado.
+app.MapGet("/health", (IHostEnvironment env, IConfiguration cfg) =>
+        Results.Ok(new { status = "healthy", ambiente = cfg["CONSOLE_AMBIENTE"] ?? env.EnvironmentName }))
     .WithName("Health");
 
 // POST /sinistros — ingestão real (Feature 2.1): valida formato mínimo, aplica idempotência,
@@ -111,7 +158,110 @@ app.MapPost("/sinistros", async (
 })
 .WithName("ReceberSinistro");
 
+// GET /casos/{caseId} — LEITURA de estado (nunca decisão). Devolve o recibo de ingestão, e —
+// quando o Worker já processou — o caso roteado + a trilha de auditoria. O Console faz polling
+// aqui para mostrar o pipeline assíncrono fechando o ciclo. Ler não fere nenhum guardrail: não
+// nega/aprova/bloqueia, só reflete o que já foi carimbado. Isolado num único ponto na borda.
+app.MapGet("/casos/{caseId:guid}", async (
+    Guid caseId,
+    AntifraudeDbContext db,
+    CancellationToken ct) =>
+{
+    var caso = await db.Casos.AsNoTracking().FirstOrDefaultAsync(c => c.CaseId == caseId, ct);
+
+    var ingestao = await db.AuditoriaIngestao.AsNoTracking()
+        .Where(a => a.CaseId == caseId)
+        .OrderBy(a => a.RecebidoEm)
+        .ToListAsync(ct);
+
+    var auditoria = await db.Auditoria.AsNoTracking()
+        .Where(a => a.CaseId == caseId)
+        .OrderBy(a => a.CarimbadoEm)
+        .ToListAsync(ct);
+
+    if (caso is null && ingestao.Count == 0 && auditoria.Count == 0)
+    {
+        return Results.NotFound(new { caseId, encontrado = false });
+    }
+
+    // Anônimo via object? para permitir null no ramo "ainda não processado pelo Worker".
+    object? casoDto = caso is null ? null : new
+    {
+        estado = caso.Estado.ToString(),
+        faixa = caso.Faixa.ToString(),
+        rota = caso.Rota.ToString(),
+        score = caso.Score,
+        versaoConfig = caso.VersaoConfig,
+        versaoProvider = caso.VersaoProvider,
+        dadosIncompletos = caso.DadosIncompletos,
+        payloadParcial = caso.PayloadParcial,
+        criadoEm = caso.CriadoEm,
+    };
+
+    return Results.Ok(new
+    {
+        caseId,
+        encontrado = caso is not null,
+        processado = caso is not null,
+        caso = casoDto,
+        ingestao = ingestao.Select(a => new
+        {
+            idempotencia = a.Idempotencia.ToString(),
+            destino = a.Destino.ToString(),
+            idSinistro = a.IdSinistro,
+            temApolice = a.TemApolice,
+            temAparelho = a.TemAparelho,
+            temFotos = a.TemFotos,
+            temMetadados = a.TemMetadados,
+            payloadParcial = a.PayloadParcial,
+            recebidoEm = a.RecebidoEm,
+        }),
+        auditoria = auditoria.Select(a => new
+        {
+            score = a.Score,
+            faixa = a.Faixa.ToString(),
+            rota = a.Rota.ToString(),
+            causa = a.Causa,
+            ator = a.Ator,
+            versaoConfig = a.VersaoConfig,
+            versaoProvider = a.VersaoProvider,
+            payloadParcial = a.PayloadParcial,
+            carimbadoEm = a.CarimbadoEm,
+        }),
+    });
+})
+.WithName("ConsultarCaso");
+
 app.Run();
+
+// Valida Basic auth do gate do Console (modo compartilhado). Sem credencial configurada, nega.
+static bool BasicAuthValida(HttpRequest req, string? credenciaisConfig)
+{
+    if (string.IsNullOrWhiteSpace(credenciaisConfig))
+    {
+        return false; // compartilhado sem credencial = nada abre (default seguro).
+    }
+
+    string? header = req.Headers.Authorization;
+    if (header is null || !header.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase))
+    {
+        return false;
+    }
+
+    string informado;
+    try
+    {
+        informado = Encoding.UTF8.GetString(Convert.FromBase64String(header["Basic ".Length..].Trim()));
+    }
+    catch (FormatException)
+    {
+        return false;
+    }
+
+    // Comparação de tempo fixo para não vazar timing da credencial.
+    return CryptographicOperations.FixedTimeEquals(
+        Encoding.UTF8.GetBytes(informado), Encoding.UTF8.GetBytes(credenciaisConfig));
+}
 
 // Publica na fila de erro técnico; retorna false se nem isso for possível (broker fora).
 static async Task<bool> TentarErroTecnicoAsync(
