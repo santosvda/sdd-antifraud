@@ -26,13 +26,14 @@ public sealed class MockScoreProvider(MockScoreProviderOptions options) : IScore
             throw new InvalidOperationException("Provider mock em modo 'simular indisponibilidade'.");
         }
 
-        // Soma ponderada placeholder: peso da config × intensidade do sinal.
+        // Soma ponderada placeholder: peso da config × sinal ativo. Indisponível é
+        // IGNORADO (nunca tratado como zero/falso) — a renormalização real é da 2.3.
         double bruto = 0;
         foreach (var sinal in sinistro.Sinais ?? [])
         {
-            if (config.Pesos.TryGetValue(sinal.Nome, out var peso))
+            if (sinal.Estado != ValorSinal.Indisponivel && config.Pesos.TryGetValue(sinal.Nome, out var peso))
             {
-                bruto += peso * sinal.Valor;
+                bruto += peso * (sinal.Estado == ValorSinal.Ativo ? 1.0 : 0.0);
             }
         }
 

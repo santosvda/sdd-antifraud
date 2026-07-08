@@ -40,10 +40,12 @@ public sealed class MotorDeDecisao(
             return FailOpen(sinistro, versaoConfig: 0, $"Falha ao resolver scoring_config ativa: {ex.Message}");
         }
 
-        // Sinal faltante/parcial: não assume score baixo nem alto por omissão.
+        // Nenhum sinal calculado (vazio ou todos indisponíveis) = "não avaliado":
+        // não assume score baixo nem alto por omissão. Indisponibilidade parcial
+        // segue para o score com os sinais disponíveis, marcada como dados incompletos.
         if (sinistro.SinaisIncompletos)
         {
-            return FailOpen(sinistro, config.Versao, "Sinais faltantes ou parciais", dadosIncompletos: true);
+            return FailOpen(sinistro, config.Versao, "Sinais faltantes ou indisponíveis", dadosIncompletos: true);
         }
 
         int score;
@@ -68,7 +70,7 @@ public sealed class MotorDeDecisao(
             score,
             config.Versao,
             causa: null,
-            dadosIncompletos: false);
+            dadosIncompletos: sinistro.AlgumSinalIndisponivel);
     }
 
     private ResultadoDecisao FailOpen(Sinistro sinistro, int versaoConfig, string causa, bool dadosIncompletos = false) =>

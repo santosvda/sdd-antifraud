@@ -1,4 +1,6 @@
+using Antifraude.Core.Coleta;
 using Antifraude.Core.Decisao;
+using Antifraude.Core.Dominio;
 using Antifraude.Core.Portas;
 using Antifraude.Infra.Mensageria;
 using Antifraude.Infra.Persistencia;
@@ -7,10 +9,12 @@ using Microsoft.EntityFrameworkCore;
 namespace Antifraude.Worker;
 
 /// <summary>
-/// Consumidor assíncrono da fila. Faz long-poll no SQS e, para cada sinistro, roda o
-/// <see cref="MotorDeDecisao"/> do Core (resolve config ativa → score → faixa/rota) e
-/// persiste caso + auditoria, tudo correlacionado pelo <c>caseId</c>. API e Worker não se
-/// chamam direto — só a fila (entrada) e o MySQL (estado).
+/// Consumidor assíncrono da fila. Faz long-poll no SQS e, para cada sinistro, coleta os
+/// 3 sinais (feature 2.2, via <see cref="ColetorDeSinais"/> — paralelo, com estado
+/// "indisponível" por sinal) e roda o <see cref="MotorDeDecisao"/> do Core (resolve
+/// config ativa → score → faixa/rota), persistindo caso + auditoria, tudo correlacionado
+/// pelo <c>caseId</c>. API e Worker não se chamam direto — só a fila (entrada) e o MySQL
+/// (estado).
 ///
 /// Fail-open vem do motor (nunca lança); aqui garantimos ainda que uma falha de infra
 /// numa mensagem não derruba o loop nem some com o sinistro (a mensagem volta à fila).
@@ -58,13 +62,26 @@ public sealed class Worker(
             {
                 using var scope = scopeFactory.CreateScope();
                 var sp = scope.ServiceProvider;
+                var coletor = sp.GetRequiredService<ColetorDeSinais>();
                 var motor = sp.GetRequiredService<MotorDeDecisao>();
                 var casos = sp.GetRequiredService<ICaseRepository>();
                 var auditoria = sp.GetRequiredService<IAuditLog>();
 
-                // O motor nunca lança: sinal faltante/parcial ou queda do provider viram
+                // Coleta (2.2): os 3 sinais em paralelo; fonte fora/dado ausente vira
+                // sinal "indisponível" — nunca trava o caso nem afeta os outros sinais.
+                var sinais = await coletor.ColetarAsync(recebido.Sinistro, ct);
+                foreach (var sinal in sinais)
+                {
+                    logger.LogInformation(
+                        "Sinal coletado. sinal={Sinal} estado={Estado} motivo={Motivo} origem={Origem}",
+                        sinal.Nome, sinal.Estado, sinal.Motivo, sinal.Origem);
+                }
+
+                var sinistro = recebido.Sinistro with { Sinais = sinais };
+
+                // O motor nunca lança: nenhum sinal calculável ou queda do provider viram
                 // PENDENTE_REVISAO_MANUAL com a causa auditada. O sinistro nunca é bloqueado.
-                var resultado = await motor.AvaliarAsync(recebido.Sinistro, ct);
+                var resultado = await motor.AvaliarAsync(sinistro, ct);
 
                 await casos.SalvarAsync(resultado.Caso, ct);
                 await auditoria.RegistrarAsync(resultado.Auditoria, ct);

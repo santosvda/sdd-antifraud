@@ -28,7 +28,7 @@ public sealed class AuditoriaImutavelTests(IntegrationFixture fixture)
     {
         Id = Guid.NewGuid(),
         CaseId = Guid.NewGuid(),
-        Sinais = [new Sinal("reuso_imagem", 1.0, "mock")],
+        Sinais = [new Sinal("reuso_imagem", ValorSinal.Ativo, "mock")],
         Score = 42,
         Faixa = Faixa.Medio,
         Rota = Rota.Normal,
