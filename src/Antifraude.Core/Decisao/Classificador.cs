@@ -9,6 +9,13 @@ namespace Antifraude.Core.Decisao;
 /// </summary>
 public static class Classificador
 {
+    /// <summary>
+    /// True quando o score está fora do intervalo válido [0,100] (ex.: negativo ou &gt;100 por
+    /// erro upstream). O pipeline trata isso como anomalia técnica — sem classificação e sem
+    /// coagir o valor (nunca <c>Math.Clamp</c> silencioso).
+    /// </summary>
+    public static bool ForaDeFaixa(int score) => score < 0 || score > 100;
+
     /// <summary>Mapeia o score para faixa usando os limiares da <see cref="ScoringConfig"/> ativa.</summary>
     public static Faixa FaixaPara(int score, ScoringConfig config)
     {

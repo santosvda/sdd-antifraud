@@ -2,6 +2,7 @@ using Amazon.Runtime;
 using Amazon.SQS;
 using Antifraude.Core.Decisao;
 using Antifraude.Core.Portas;
+using Antifraude.Infra.Alertas;
 using Antifraude.Infra.Mensageria;
 using Antifraude.Infra.Persistencia;
 using Antifraude.Infra.Score;
@@ -32,6 +33,9 @@ public static class DependencyInjection
         services.AddScoped<IAuditLog, AuditLog>();
         services.AddScoped<IAuditLogIngestao, AuditLogIngestao>();
         services.AddScoped<ISinistroDedupStore, SinistroDedupStore>();
+
+        // Alerta técnico (distinto do operacional): adapter de log Critical na fundação.
+        services.AddSingleton<IAlertaTecnico, AlertaTecnicoLog>();
 
         // Provider de score: mock sinalizado nesta fundação (fatia 1 troca a implementação).
         var mockOptions = new MockScoreProviderOptions

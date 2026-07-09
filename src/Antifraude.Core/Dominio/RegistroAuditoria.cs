@@ -31,6 +31,15 @@ public sealed class RegistroAuditoria
     /// <summary>Causa registrada quando há fail-open (falha do provider ou sinal ausente).</summary>
     public string? Causa { get; init; }
 
+    /// <summary>Explicação textual da faixa gerada por template. <c>null</c> quando não há classificação.</summary>
+    public string? Explicacao { get; init; }
+
+    /// <summary>Versão do template de explicação usada. <c>null</c> quando não há explicação.</summary>
+    public string? VersaoTemplate { get; init; }
+
+    /// <summary>Motivo tipado de sem-classificação (fail-open ou anomalia). <c>null</c> quando classificado.</summary>
+    public MotivoSemClassificacao? Motivo { get; init; }
+
     /// <summary>Ator responsável pela decisão (ex.: <c>worker</c>).</summary>
     public string Ator { get; init; } = string.Empty;
 

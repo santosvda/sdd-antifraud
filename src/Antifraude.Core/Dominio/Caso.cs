@@ -31,5 +31,14 @@ public sealed class Caso
     /// <summary>True quando o payload de ingestão veio incompleto (campos não-estruturais ausentes).</summary>
     public bool PayloadParcial { get; init; }
 
+    /// <summary>Explicação textual da faixa (template determinístico). <c>null</c> quando não há classificação.</summary>
+    public string? Explicacao { get; init; }
+
+    /// <summary>Versão do template de explicação usada. <c>null</c> quando não há explicação.</summary>
+    public string? VersaoTemplate { get; init; }
+
+    /// <summary>Motivo tipado quando o caso não recebeu faixa (fail-open ou anomalia). <c>null</c> quando classificado.</summary>
+    public MotivoSemClassificacao? Motivo { get; init; }
+
     public DateTimeOffset CriadoEm { get; init; }
 }

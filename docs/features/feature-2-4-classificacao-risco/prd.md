@@ -85,12 +85,12 @@ Um score numérico isolado (ex.: "72") não diz nada por si só ao analista sobr
 
 1. A faixa é atribuída conforme os limiares vigentes e configuráveis, usando **intervalo fechado-aberto**: **baixo = [0, 30), médio = [30, 70), alto = [70, 100]** (mesma governança de calibração já definida na feature 2.3 — equipe antifraude, revisão trimestral + gatilho reativo, mudança versionada e auditável).
 2. Se a feature 2.3 sinalizar que não houve score calculado (fail-open), esta feature não classifica — repassa a marca de "sem classificação" para a feature 2.5, sem inventar uma faixa padrão.
-3. A explicação textual é gerada por **template determinístico** (não por geração livre de linguagem natural), garantindo reprodutibilidade e conformidade automática com a exigência de "sem linguagem acusatória" — a mesma entrada sempre produz a mesma frase.
-4. A explicação sempre menciona: o valor do score, a faixa atribuída, **os nomes dos sinais ativados** (em linguagem de indício, nunca de conclusão — ex.: "indícios de reuso de imagem", nunca "reuso de imagem confirmado"), e, se aplicável, que o cálculo teve cobertura parcial (sinal ausente).
+3. A explicação textual é gerada por **template determinístico definido em código** (não por geração livre de linguagem natural), garantindo reprodutibilidade e conformidade automática com a exigência de "sem linguagem acusatória" — a mesma entrada sempre produz a mesma frase. O template é versionado (`VersaoTemplate`) e revisado por compliance via PR/diff (ver §23).
+4. A explicação sempre menciona: o valor do score, a faixa atribuída, **os nomes de exibição dos sinais ativados** (em linguagem de indício, nunca de conclusão — ex.: "indícios de reuso de imagem", nunca "reuso de imagem confirmado"), e, se aplicável, que o cálculo teve cobertura parcial (sinal ausente). Um sinal é considerado **ativado** quando está presente com `Valor > 0` (contribuiu de fato ao score); os nomes de exibição vêm de um mapa em código versionado junto do template, com fallback seguro para sinal desconhecido (nunca vaza o identificador técnico cru).
 5. A explicação nunca usa linguagem que afirme fraude como fato consumado (ex.: "fraude confirmada", "cliente mentiu") — sempre linguagem de indício/hipótese (ex.: "foram identificados N indícios", "o score sugere atenção").
-6. Toda classificação registra a versão dos limiares usada, para auditoria e para permitir reconstituir por que um caso antigo recebeu determinada faixa mesmo após os limiares mudarem.
-7. A classificação é determinística: mesmo score + mesma versão de limiares → mesma faixa e mesma explicação, sempre.
-8. Um score fora do intervalo esperado (ex.: negativo ou >100, por erro upstream) é tratado como **equivalente ao fail-open** para fins de roteamento (sem classificação, sinistro segue para revisão manual), mas gera um **alerta técnico de severidade alta** — distinto do alerta padrão de indisponibilidade esperada, pois indica anomalia no motor de score.
+6. Toda classificação registra a **versão dos limiares** (`VersaoConfig`) **e a versão do template** (`VersaoTemplate`) usadas, para auditoria e para permitir reconstituir por que um caso antigo recebeu determinada faixa e determinado texto mesmo após limiares ou template mudarem.
+7. A classificação é determinística: mesmo score + mesma versão de limiares + mesma versão de template → mesma faixa e mesma explicação, sempre.
+8. Um score fora do intervalo esperado (ex.: negativo ou >100, por erro upstream) é tratado como **equivalente ao fail-open** para fins de roteamento (sem classificação, sinistro segue para revisão manual), mas gera um **alerta técnico de severidade alta** — distinto do alerta padrão de indisponibilidade esperada, pois indica anomalia no motor de score. Este caso e os demais casos de "sem classificação" são distinguidos por um **motivo tipado** (`MotivoSemClassificacao`), não por texto livre — ver §23. **Nota de implementação:** o pipeline atual (`MotorDeDecisao`) hoje faz `Math.Clamp(score, 0, 100)`, coagindo silenciosamente valores fora de faixa; esta regra **exige a remoção desse clamp** e sua substituição pela detecção de anomalia descrita aqui.
 
 ## 8. Arquitetura de Alto Nível
 
@@ -133,13 +133,14 @@ Um score numérico isolado (ex.: "72") não diz nada por si só ao analista sobr
 |---|---|
 | RF01 | O sistema deve classificar o score recebido em uma das três faixas (baixo/médio/alto), usando intervalo fechado-aberto: baixo [0,30), médio [30,70), alto [70,100]. |
 | RF02 | O sistema deve usar limiares configuráveis (herdados da mesma configuração versionada da feature 2.3), nunca hard-coded. |
-| RF03 | O sistema deve gerar uma explicação textual associada à faixa, usando template determinístico. |
-| RF04 | A explicação gerada deve nomear os sinais ativados em linguagem de indício, e nunca conter linguagem acusatória ou afirmar fraude como fato consumado. |
-| RF05 | A explicação deve mencionar explicitamente quando o score foi calculado com cobertura parcial (sinal ausente). |
-| RF06 | Quando a feature 2.3 sinalizar "não avaliado" (fail-open), esta feature não deve gerar faixa nem explicação — apenas repassar a marca adiante. |
-| RF07 | O sistema deve registrar a versão dos limiares usada em cada classificação. |
-| RF08 | A classificação e a explicação devem ser determinísticas: mesma entrada e versão de limiares produzem sempre o mesmo resultado. |
-| RF09 | Um score fora do intervalo [0,100] deve ser tratado como equivalente ao fail-open (sem classificação) e gerar alerta técnico de severidade alta. |
+| RF03 | O sistema deve gerar uma explicação textual associada à faixa, usando template determinístico definido em código e versionado (`VersaoTemplate`). |
+| RF04 | A explicação gerada deve nomear os sinais ativados (`Valor > 0`) por seu nome de exibição, em linguagem de indício, e nunca conter linguagem acusatória ou afirmar fraude como fato consumado. |
+| RF05 | A explicação deve mencionar explicitamente quando o score foi calculado com cobertura parcial (sinal ausente). O gerador recebe `coberturaParcial` como parâmetro próprio; sem alterar o contrato de score da feature 2.3. |
+| RF06 | Quando a feature 2.3 sinalizar "não avaliado" (fail-open), esta feature não deve gerar faixa nem explicação de faixa — apenas repassar a marca adiante (motivo tipado + rótulo canônico). |
+| RF07 | O sistema deve registrar a versão dos limiares (`VersaoConfig`) e a versão do template (`VersaoTemplate`) usadas em cada classificação. |
+| RF08 | A classificação e a explicação devem ser determinísticas: mesma entrada + mesma versão de limiares + mesma versão de template produzem sempre o mesmo resultado. |
+| RF09 | Um score fora do intervalo [0,100] deve ser tratado como equivalente ao fail-open (sem classificação, motivo `ScoreForaDeFaixa`) e gerar alerta técnico de severidade alta. O `Math.Clamp` atual do pipeline deve ser removido. |
+| RF10 | Cada caso "sem classificação" deve carimbar um motivo tipado (`MotivoSemClassificacao`) que distinga indisponibilidade esperada de anomalia técnica, no `Caso` e na auditoria. |
 
 ## 10. Requisitos Não Funcionais
 
@@ -184,8 +185,8 @@ Para cada classificação, registrar de forma imutável:
 | Exceção | Tratamento |
 |---|---|
 | Feature 2.3 sinaliza "não avaliado" (fail-open) | Não classificar; repassar a marca de "sem classificação" para a feature 2.5. |
-| Score fora do intervalo esperado (ex.: negativo ou >100, por erro upstream) | Tratar como equivalente ao fail-open (sem classificação, revisão manual) + alerta técnico de severidade alta (indica bug, não indisponibilidade esperada). |
-| Configuração de limiares ausente ou corrompida | Usar a última versão válida conhecida; emitir alerta técnico; nunca operar sem limiares validados. |
+| Score fora do intervalo esperado (ex.: negativo ou >100, por erro upstream) | Tratar como equivalente ao fail-open (sem classificação, revisão manual), com motivo `ScoreForaDeFaixa` + alerta técnico de severidade alta (indica bug, não indisponibilidade esperada). |
+| Configuração de limiares ausente ou corrompida | Marcar sem classificação (motivo `ConfigIndisponivel`/`ConfigCorrompida`) + emitir alerta técnico. A resiliência "usar a última versão válida conhecida" é responsabilidade da camada de configuração versionada (feature 2.3), não desta feature — esta feature não duplica a resolução de config. |
 
 ## 16. Critérios de Aceite (Gherkin)
 
@@ -279,3 +280,40 @@ Funcionalidade: Classificação de risco e explicação textual
 | **Template determinístico** | Estrutura de texto fixa com campos variáveis preenchidos a partir dos dados do caso, garantindo que a mesma entrada sempre gere a mesma saída. |
 | **Cobertura parcial** | Indicação de que o score foi calculado com pesos renormalizados por ausência de um ou mais sinais. |
 | **Intervalo fechado-aberto** | Convenção matemática usada para definir sem ambiguidade a qual faixa pertence um valor exatamente no limite (ex.: [30, 70) inclui 30 mas não 70). |
+| **Motivo de sem-classificação** | Enum tipado (`MotivoSemClassificacao`) que distingue *por que* um caso não recebeu faixa — indisponibilidade esperada vs. anomalia técnica — governando o disparo (ou não) do alerta. |
+| **Sinal ativado** | Sinal presente no cálculo com `Valor > 0` (contribuiu de fato ao score). Critério usado para decidir quais sinais nomear na explicação. |
+
+## 23. Decisões de Implementação e Fronteiras (sessão de grilling — 2026-07-08)
+
+> Contexto: as features **2.2 (Coleta de Sinais)** e **2.3 (Score & Regras)** estão sendo implementadas **em paralelo por outros devs**. Nada nesta fatia pode interferir no trabalho deles — em particular, a 2.4 **não altera** o contrato de score (`IScoreProvider`, `Sinal`, `Sinistro`, `ScoringConfig`).
+
+### 23.1 Estado atual vs. novo
+
+Boa parte da classificação **já existe** na fundação: `Classificador.FaixaPara` (score → faixa com intervalo fechado-aberto, limiares da `ScoringConfig` versionada), `Classificador.RotaPara` (faixa → rota), `Faixa.Indeterminado` para fail-open, e o carimbo de `VersaoConfig` no `Caso` e na `RegistroAuditoria`. O trabalho **novo** da 2.4 é: (a) o **gerador de explicação textual**, (b) a resolução do **conflito do clamp** (RF09), e (c) a **distinção tipada** entre indisponibilidade esperada e anomalia técnica.
+
+### 23.2 Decisões
+
+| # | Decisão | Resolução |
+|---|---------|-----------|
+| 1 | **Placement** | Estender o `Core`: novo `GeradorDeExplicacao` puro; a explicação vira campo do `ResultadoDecisao`. Sem novo serviço/processo. |
+| 2 | **Score fora de [0,100]** | **Remover o `Math.Clamp`** (`MotorDeDecisao.cs`) e tratar como **anomalia**: sem classificação (rota de revisão manual) + alerta severidade alta. |
+| 3 | **Canal de alerta** | Nova porta `IAlertaTecnico` no `Core` + adapter na `Infra` que loga estruturado (nível Critical) com o `caseId`. Gancho pronto para plantão/PagerDuty; sem construir o canal real agora. |
+| 4 | **Distinguir "sem classificação"** | Novo enum `MotivoSemClassificacao` (ex.: `SinalAusente`, `ProviderIndisponivel`, `ConfigIndisponivel`, `ConfigCorrompida`, `ScoreForaDeFaixa`), carimbado no `Caso` e na `Auditoria`, ao lado da `Causa` textual. O disparo do alerta é decidido **pelo motivo**, não por parse de string. |
+| 5 | **Persistir a explicação** | Coluna nova no `Caso` **e** no `RegistroAuditoria` (migration aditiva). |
+| 6 | **Template** | Em código, determinístico, com `VersaoTemplate` carimbada ao lado da versão de limiares. Compliance revisa por PR/diff. |
+| 7 | **Nomes de exibição dos sinais** | Mapa em código no módulo de template (versionado junto), com fallback seguro para sinal desconhecido — nunca vaza o id técnico cru. |
+| 8 | **"Sinal ativado"** | Presente com `Valor > 0`. |
+| 9 | **Texto em fail-open (RF06)** | Explicação de faixa fica `null` (nenhuma faixa/texto de faixa inventado). A "marca" é o `MotivoSemClassificacao`, que expõe um **rótulo canônico** curto e não-acusatório derivado do enum, produzido num único lugar no `Core` (consistência entre consumidores). |
+| 10 | **Cobertura parcial (RF05)** | `GeradorDeExplicacao` recebe `coberturaParcial` como **parâmetro próprio**; o seam passa `false` até a 2.3 expor o dado. **Sem tocar `IScoreProvider`.** O galho do template é coberto por unit test desde já. |
+| 11 | **Integração** | **Aditivo** (só arquivos novos) + **um** seam mínimo no `MotorDeDecisao` (chamar o gerador; mover o tratamento de out-of-range para cá). O ponto de merge é combinado com o dev da 2.3. |
+| 12 | **Verificação** | Unit (gerador + classificador com entradas sintéticas) **+** integração com um `IScoreProvider` de teste **no projeto Tests** (injeta sinais e scores fora de faixa). **Não** toca o `MockScoreProvider` compartilhado. |
+| 13 | **Config corrompida (§15)** | 2.4 marca o motivo + emite o alerta; a resiliência "última versão válida conhecida" fica com a camada de config (2.3). |
+
+### 23.3 Derivados (sem conflito)
+
+- `RotaPara` fica como está: anomalia e fail-open → `Faixa.Indeterminado` → `Rota.Reforcada` (revisão manual). Quem distingue os casos é o `MotivoSemClassificacao`, não a rota.
+- Rótulos canônicos (dec. 9) e nomes de exibição (dec. 7) moram no mesmo módulo de template, sob a mesma `VersaoTemplate`, sujeitos à mesma revisão de compliance.
+
+### 23.4 Reachability hoje (nota de verificação)
+
+No pipeline vivo atual, **todo caso cai em fail-open** — os sinais não fluem (2.2 pendente, `Sinistro.SinaisIncompletos` curto-circuita antes do score) e o `MockScoreProvider` também clampa. Portanto os destaques da 2.4 (explicação de faixa real, nomear sinais, cobertura parcial, anomalia out-of-range) só são exercitáveis por **unit test** e pelo **test-double** da decisão 12 — não pelo caminho end-to-end padrão enquanto 2.2/2.3 não assentarem.
