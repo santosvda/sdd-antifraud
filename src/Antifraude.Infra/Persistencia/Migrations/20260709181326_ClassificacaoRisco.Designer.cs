@@ -4,6 +4,7 @@ using Antifraude.Infra.Persistencia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Antifraude.Infra.Persistencia.Migrations
 {
     [DbContext(typeof(AntifraudeDbContext))]
-    partial class AntifraudeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260709181326_ClassificacaoRisco")]
+    partial class ClassificacaoRisco
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

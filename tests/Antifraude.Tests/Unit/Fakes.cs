@@ -3,6 +3,21 @@ using Antifraude.Core.Portas;
 
 namespace Antifraude.Tests.Unit;
 
+/// <summary>Alerta técnico que apenas registra o que foi emitido, para asserção nos testes.</summary>
+internal sealed class FakeAlertaTecnico : IAlertaTecnico
+{
+    private readonly List<(SeveridadeAlerta Severidade, string Codigo, Guid CaseId)> _emitidos = [];
+
+    public IReadOnlyList<(SeveridadeAlerta Severidade, string Codigo, Guid CaseId)> Emitidos => _emitidos;
+
+    public Task EmitirAsync(
+        SeveridadeAlerta severidade, string codigo, Guid caseId, string? detalhe = null, CancellationToken ct = default)
+    {
+        _emitidos.Add((severidade, codigo, caseId));
+        return Task.CompletedTask;
+    }
+}
+
 /// <summary>Repo de config em memória para os testes unitários do motor.</summary>
 internal sealed class FakeConfigRepository(ScoringConfig? config = null) : IScoringConfigRepository
 {

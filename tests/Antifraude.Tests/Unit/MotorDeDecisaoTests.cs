@@ -172,4 +172,66 @@ public sealed class MotorDeDecisaoTests
             r.Caso.Estado.Should().BeOneOf(EstadoDoCaso.RoteadoParaRevisao, EstadoDoCaso.PendenteRevisaoManual);
         }
     }
+
+    [Fact]
+    public async Task Caso_classificado_gera_explicacao_e_carimba_versao_template()
+    {
+        var r = await Motor(score: 80).AvaliarAsync(ComSinais());
+
+        r.Caso.Explicacao.Should().NotBeNullOrWhiteSpace();
+        r.Caso.Explicacao.Should().Contain("reuso de imagem");
+        r.Caso.VersaoTemplate.Should().Be("tmpl-v1");
+        r.Caso.Motivo.Should().BeNull();
+        r.Auditoria.Explicacao.Should().Be(r.Caso.Explicacao);
+        r.Auditoria.VersaoTemplate.Should().Be("tmpl-v1");
+    }
+
+    [Fact]
+    public async Task Score_fora_de_faixa_vira_anomalia_com_alerta_severidade_alta()
+    {
+        var alerta = new FakeAlertaTecnico();
+        var motor = new MotorDeDecisao(
+            new FakeConfigRepository(FakeConfigRepository.ConfigPadrao),
+            new FakeScoreProvider(score: -5),
+            alertaTecnico: alerta);
+        var sinistro = ComSinais();
+
+        var r = await motor.AvaliarAsync(sinistro);
+
+        r.Caso.Estado.Should().Be(EstadoDoCaso.PendenteRevisaoManual);
+        r.Caso.Faixa.Should().Be(Faixa.Indeterminado);
+        r.Caso.Score.Should().BeNull("o score fora de faixa não é coagido para dentro do intervalo");
+        r.Caso.Motivo.Should().Be(MotivoSemClassificacao.ScoreForaDeFaixa);
+        r.Caso.Explicacao.Should().BeNull();
+
+        alerta.Emitidos.Should().ContainSingle();
+        alerta.Emitidos[0].Severidade.Should().Be(SeveridadeAlerta.Alta);
+        alerta.Emitidos[0].Codigo.Should().Be(nameof(MotivoSemClassificacao.ScoreForaDeFaixa));
+        alerta.Emitidos[0].CaseId.Should().Be(sinistro.CaseId);
+    }
+
+    [Fact]
+    public async Task Provider_indisponivel_carimba_motivo_e_nao_emite_alerta()
+    {
+        var alerta = new FakeAlertaTecnico();
+        var motor = new MotorDeDecisao(
+            new FakeConfigRepository(FakeConfigRepository.ConfigPadrao),
+            new FakeScoreProvider(lancar: true),
+            alertaTecnico: alerta);
+
+        var r = await motor.AvaliarAsync(ComSinais());
+
+        r.Caso.Motivo.Should().Be(MotivoSemClassificacao.ProviderIndisponivel);
+        alerta.Emitidos.Should().BeEmpty("indisponibilidade esperada não é anomalia técnica");
+    }
+
+    [Fact]
+    public async Task Sinais_faltantes_carimbam_motivo_sinal_ausente()
+    {
+        var sinistro = new Sinistro(Guid.NewGuid(), "SIN-3", Sinais: []);
+
+        var r = await Motor(score: 50).AvaliarAsync(sinistro);
+
+        r.Caso.Motivo.Should().Be(MotivoSemClassificacao.SinalAusente);
+    }
 }

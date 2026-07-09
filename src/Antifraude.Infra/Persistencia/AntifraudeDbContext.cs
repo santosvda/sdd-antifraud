@@ -46,6 +46,9 @@ public sealed class AntifraudeDbContext(DbContextOptions<AntifraudeDbContext> op
             e.Property(c => c.DadosIncompletos).HasColumnName("dados_incompletos");
             e.Property(c => c.PayloadParcial).HasColumnName("payload_parcial");
             e.Property(c => c.CoberturaParcial).HasColumnName("cobertura_parcial");
+            e.Property(c => c.Explicacao).HasColumnName("explicacao").HasMaxLength(2000);
+            e.Property(c => c.VersaoTemplate).HasColumnName("versao_template").HasMaxLength(40);
+            e.Property(c => c.Motivo).HasColumnName("motivo").HasConversion<string>().HasMaxLength(40);
             e.Property(c => c.CriadoEm).HasColumnName("criado_em");
         });
 
@@ -99,6 +102,9 @@ public sealed class AntifraudeDbContext(DbContextOptions<AntifraudeDbContext> op
             e.Property(a => a.VersaoConfig).HasColumnName("versao_config");
             e.Property(a => a.VersaoProvider).HasColumnName("versao_provider").HasMaxLength(60);
             e.Property(a => a.Causa).HasColumnName("causa").HasMaxLength(1000);
+            e.Property(a => a.Explicacao).HasColumnName("explicacao").HasMaxLength(2000);
+            e.Property(a => a.VersaoTemplate).HasColumnName("versao_template").HasMaxLength(40);
+            e.Property(a => a.Motivo).HasColumnName("motivo").HasConversion<string>().HasMaxLength(40);
             e.Property(a => a.Ator).HasColumnName("ator").HasMaxLength(60);
             e.Property(a => a.PayloadParcial).HasColumnName("payload_parcial");
             e.Property(a => a.CoberturaParcial).HasColumnName("cobertura_parcial");

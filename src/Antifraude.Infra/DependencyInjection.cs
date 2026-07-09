@@ -3,6 +3,7 @@ using Amazon.SQS;
 using Antifraude.Core.Coleta;
 using Antifraude.Core.Decisao;
 using Antifraude.Core.Portas;
+using Antifraude.Infra.Alertas;
 using Antifraude.Infra.Fontes;
 using Antifraude.Infra.Mensageria;
 using Antifraude.Infra.Persistencia;
@@ -42,6 +43,9 @@ public static class DependencyInjection
         services.AddScoped<IAuditLog, AuditLog>();
         services.AddScoped<IAuditLogIngestao, AuditLogIngestao>();
         services.AddScoped<ISinistroDedupStore, SinistroDedupStore>();
+
+        // Alerta técnico (distinto do operacional): adapter de log Critical na fundação.
+        services.AddSingleton<IAlertaTecnico, AlertaTecnicoLog>();
 
         // Provider de score: motor de regras determinístico (Feature 2.3) no caminho real.
         // O mock sinalizado permanece disponível atrás de flag para provar o fail-open em dev/teste.

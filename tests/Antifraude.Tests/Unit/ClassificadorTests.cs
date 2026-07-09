@@ -44,4 +44,15 @@ public sealed class ClassificadorTests
     [InlineData(Faixa.Indeterminado, Rota.Reforcada)]
     public void RotaPara_sempre_uma_fila_humana(Faixa faixa, Rota esperada) =>
         Classificador.RotaPara(faixa).Should().Be(esperada);
+
+    [Theory]
+    [InlineData(-1, true)]
+    [InlineData(-5, true)]
+    [InlineData(101, true)]
+    [InlineData(150, true)]
+    [InlineData(0, false)]
+    [InlineData(50, false)]
+    [InlineData(100, false)]
+    public void ForaDeFaixa_detecta_score_fora_de_0_100(int score, bool esperado) =>
+        Classificador.ForaDeFaixa(score).Should().Be(esperado);
 }
