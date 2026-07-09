@@ -15,7 +15,8 @@ namespace Antifraude.Tests.Integracao;
 [Collection(IntegrationCollection.Nome)]
 public sealed class ScoreRegrasTests(IntegrationFixture fixture)
 {
-    private static Sinal S(string nome, double valor = 1.0) => new(nome, valor, "teste");
+    private static Sinal S(string nome, double valor = 1.0) =>
+        new(nome, valor != 0 ? ValorSinal.Ativo : ValorSinal.Inativo, "teste");
 
     private static Sinistro ComSinais(params Sinal[] sinais) =>
         new(Guid.NewGuid(), $"SIN-{Guid.NewGuid():N}", Sinais: sinais);

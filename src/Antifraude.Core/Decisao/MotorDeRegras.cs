@@ -6,9 +6,9 @@ namespace Antifraude.Core.Decisao;
 /// <summary>
 /// Motor de score determinístico (Feature 2.3) — implementação real de <see cref="IScoreProvider"/>.
 /// 100% puro: função de <c>(sinais, config)</c>, sem I/O, reprodutível (RF10). Score = soma dos
-/// pesos dos sinais booleanos verdadeiros. Renormaliza sobre 2 de 3 sinais (piso de cobertura);
-/// com 0 ou 1 sinal presente não avalia (fail-open a cargo do consumidor). Filtra atributos
-/// proibidos antes do cálculo.
+/// pesos dos sinais <see cref="ValorSinal.Ativo"/>. Sinais indisponíveis não contam como presentes
+/// (nunca viram falso). Renormaliza sobre 2 de 3 sinais (piso de cobertura); com 0 ou 1 sinal
+/// presente não avalia (fail-open a cargo do consumidor). Filtra atributos proibidos antes do cálculo.
 /// </summary>
 public sealed class MotorDeRegras : IScoreProvider
 {
@@ -25,9 +25,11 @@ public sealed class MotorDeRegras : IScoreProvider
         var filtro = FiltroAtributosProibidos.Filtrar(sinistro.Sinais);
         var proibidos = filtro.ProibidosDetectados;
 
-        // Estado explícito por sinal esperado: presente (com valor) ou ausente.
+        // Estado explícito por sinal esperado: presente (calculado, ativo ou inativo) ou ausente.
+        // Indisponível NÃO conta como presente — nunca vira falso; sai do denominador da
+        // renormalização e é tratado como ausente para a cobertura (guardrail da coleta).
         var presentes = filtro.Permitidos
-            .Where(s => SinaisConhecidos.Esperados.Contains(s.Nome))
+            .Where(s => SinaisConhecidos.Esperados.Contains(s.Nome) && !s.Indisponivel)
             .GroupBy(s => s.Nome)
             .ToDictionary(g => g.Key, g => g.First());
 
@@ -55,7 +57,7 @@ public sealed class MotorDeRegras : IScoreProvider
 
         // Soma dos pesos (renormalizados) dos sinais presentes E verdadeiros.
         double bruto = nomesPresentes
-            .Where(n => presentes[n].Valor != 0)
+            .Where(n => presentes[n].Estado == ValorSinal.Ativo)
             .Sum(n => config.Pesos.GetValueOrDefault(n, 0) * fator);
 
         var score = (int)Math.Clamp(Math.Round(bruto, MidpointRounding.AwayFromZero), 0, 100);

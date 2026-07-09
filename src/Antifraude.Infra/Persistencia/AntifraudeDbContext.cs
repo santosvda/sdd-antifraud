@@ -22,6 +22,12 @@ public sealed class AntifraudeDbContext(DbContextOptions<AntifraudeDbContext> op
 
     public DbSet<SinistroProcessado> SinistrosProcessados => Set<SinistroProcessado>();
 
+    public DbSet<ImagemHashRegistro> ImagemHashes => Set<ImagemHashRegistro>();
+
+    public DbSet<ApoliceRegistro> Apolices => Set<ApoliceRegistro>();
+
+    public DbSet<HistoricoSinistroRegistro> HistoricoSinistros => Set<HistoricoSinistroRegistro>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -126,6 +132,44 @@ public sealed class AntifraudeDbContext(DbContextOptions<AntifraudeDbContext> op
             e.Property(s => s.IdSinistro).HasColumnName("id_sinistro").HasMaxLength(100);
             e.Property(s => s.PrimeiraVezEm).HasColumnName("primeira_vez_em");
             e.HasIndex(s => s.PrimeiraVezEm).HasDatabaseName("ix_sinistros_processados_primeira_vez_em");
+        });
+
+        modelBuilder.Entity<ImagemHashRegistro>(e =>
+        {
+            e.ToTable("imagem_hashes");
+            e.HasKey(h => h.Id);
+            e.Property(h => h.Id).HasColumnName("id");
+            e.Property(h => h.IdSinistro).HasColumnName("id_sinistro").HasMaxLength(100);
+            e.Property(h => h.FotoRef).HasColumnName("foto_ref").HasMaxLength(500);
+            e.Property(h => h.Phash).HasColumnName("phash");
+            e.Property(h => h.CriadoEm).HasColumnName("criado_em");
+            // Upsert idempotente por (sinistro, foto) — reprocessamento não duplica.
+            e.HasIndex(h => new { h.IdSinistro, h.FotoRef }).IsUnique()
+                .HasDatabaseName("ux_imagem_hashes_sinistro_foto");
+            // Janela móvel de 6 meses consultada por criado_em.
+            e.HasIndex(h => h.CriadoEm).HasDatabaseName("ix_imagem_hashes_criado_em");
+        });
+
+        modelBuilder.Entity<ApoliceRegistro>(e =>
+        {
+            e.ToTable("apolices");
+            e.HasKey(a => a.Apolice);
+            e.Property(a => a.Apolice).HasColumnName("apolice").HasMaxLength(100);
+            e.Property(a => a.Imei).HasColumnName("imei").HasMaxLength(50);
+            e.Property(a => a.NumeroSerie).HasColumnName("numero_serie").HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<HistoricoSinistroRegistro>(e =>
+        {
+            e.ToTable("historico_sinistros");
+            e.HasKey(h => h.IdSinistro);
+            e.Property(h => h.IdSinistro).HasColumnName("id_sinistro").HasMaxLength(100);
+            e.Property(h => h.IdCliente).HasColumnName("id_cliente").HasMaxLength(100);
+            e.Property(h => h.Imei).HasColumnName("imei").HasMaxLength(50);
+            e.Property(h => h.AbertoEm).HasColumnName("aberto_em");
+            // Índices dedicados do velocity (risco de lentidão do PRD, seção 18).
+            e.HasIndex(h => h.IdCliente).HasDatabaseName("ix_historico_sinistros_id_cliente");
+            e.HasIndex(h => h.Imei).HasDatabaseName("ix_historico_sinistros_imei");
         });
     }
 }

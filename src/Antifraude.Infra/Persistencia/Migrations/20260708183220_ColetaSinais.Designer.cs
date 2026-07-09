@@ -4,6 +4,7 @@ using Antifraude.Infra.Persistencia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Antifraude.Infra.Persistencia.Migrations
 {
     [DbContext(typeof(AntifraudeDbContext))]
-    partial class AntifraudeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260708183220_ColetaSinais")]
+    partial class ColetaSinais
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -28,10 +31,6 @@ namespace Antifraude.Infra.Persistencia.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)")
                         .HasColumnName("case_id");
-
-                    b.Property<bool>("CoberturaParcial")
-                        .HasColumnType("tinyint(1)")
-                        .HasColumnName("cobertura_parcial");
 
                     b.Property<DateTimeOffset>("CriadoEm")
                         .HasColumnType("datetime(6)")
@@ -107,10 +106,6 @@ namespace Antifraude.Infra.Persistencia.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("varchar(1000)")
                         .HasColumnName("causa");
-
-                    b.Property<bool>("CoberturaParcial")
-                        .HasColumnType("tinyint(1)")
-                        .HasColumnName("cobertura_parcial");
 
                     b.Property<string>("Faixa")
                         .IsRequired()

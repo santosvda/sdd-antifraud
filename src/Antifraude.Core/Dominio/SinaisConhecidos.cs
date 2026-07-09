@@ -9,7 +9,7 @@ public static class SinaisConhecidos
 {
     public const string ReusoImagem = "reuso_imagem";
 
-    public const string ImeiSerie = "imei_serie";
+    public const string ImeiSerie = "imei_serie_divergente";
 
     public const string Velocity = "velocity";
 

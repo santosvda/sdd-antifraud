@@ -27,7 +27,8 @@ public sealed class MotorDeRegrasTests
     private static Sinistro Com(params Sinal[] sinais) =>
         new(Guid.NewGuid(), "SIN", Sinais: sinais);
 
-    private static Sinal S(string nome, double valor = 1.0) => new(nome, valor, "teste");
+    private static Sinal S(string nome, double valor = 1.0) =>
+        new(nome, valor != 0 ? ValorSinal.Ativo : ValorSinal.Inativo, "teste");
 
     [Fact]
     public async Task Tres_sinais_verdadeiros_somam_os_pesos()

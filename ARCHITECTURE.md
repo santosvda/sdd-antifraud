@@ -58,9 +58,32 @@ referência), `metadados`. A ingestão é idempotente e resiliente:
   imutabilidade) registra completude do payload, resultado da idempotência e destino do
   roteamento.
 
-> Enquanto a coleta de sinais (2.2) não existe, os sinistros chegam **sem sinais** e o
-> `MotorDeDecisao` os roteia via fail-open para `PendenteRevisaoManual` — o fluxo ponta a
-> ponta segue íntegro.
+## Coleta de sinais (Feature 2.2)
+
+Antes da decisão, o Worker coleta os **3 sinais fixos** desta fatia via `ColetorDeSinais`
+(`Core/Coleta`), em **paralelo** e com isolamento por sinal:
+
+- **`reuso_imagem`** — pHash (64 bits) das fotos comparado ao histórico de 6 meses;
+  reuso confirmado com distância de Hamming ≤ 10. Sem acesso aos bytes nesta fatia, o
+  hash é derivado da referência da foto e **sinalizado** `phash-fake-v1` (mesmo padrão do
+  mock de score).
+- **`imei_serie_divergente`** — IMEI/série do sinistro × base de apólices; ativa tanto
+  para "diverge" quanto para "não cadastrado" (a evidência distingue os motivos).
+- **`velocity`** — ≥2 sinistros do mesmo cliente OU aparelho em 90 dias (janela a partir
+  de `abertoEm`, fallback data de processamento). O caso nunca se conta: as consultas
+  excluem o próprio `idSinistro` e o registro no histórico é upsert idempotente.
+
+Cada sinal é **tri-estado** (`Ativo`/`Inativo`/`Indisponivel`) com evidência estruturada
+e mascarada (IMEI/série truncados). Dado ausente no payload ou fonte fora do ar viram
+`Indisponivel` (nunca "falso"), com o motivo auditado. As 3 fontes (tabelas locais fake:
+`imagem_hashes`, `apolices`, `historico_sinistros`) ficam atrás de portas do Core com
+decorators de **timeout + circuit breaker independentes** (`CircuitoDaFonte`), e cada uma
+tem modo "simular indisponibilidade" via env var (`FONTE_*_INDISPONIVEL`).
+
+> Indisponibilidade **parcial** (1–2 sinais) segue para o score com os sinais disponíveis
+> e `DadosIncompletos = true`; com **3/3 indisponíveis** o caso é "não avaliado" e cai no
+> fail-open (`PendenteRevisaoManual`). O peso de `velocity` na `scoring_config` é decisão
+> de calibração da 2.3 — o sinal já nasce calculado e auditado.
 
 ## Fluxo ponta a ponta
 
@@ -69,8 +92,9 @@ referência), `metadados`. A ingestão é idempotente e resiliente:
    decide o mérito.
 2. **SQS (LocalStack)** — duas filas (processamento + erro técnico) criadas de forma
    idempotente no bootstrap. Desacopla recepção de processamento.
-3. **Worker** (`Worker/Worker.cs`) — long-poll na fila; para cada sinistro roda o
-   `MotorDeDecisao`.
+3. **Worker** (`Worker/Worker.cs`) — long-poll na fila; para cada sinistro coleta os 3
+   sinais (`ColetorDeSinais`, feature 2.2) e roda o `MotorDeDecisao` com o sinistro
+   enriquecido.
 4. **`MotorDeDecisao`** (`Core/Decisao/MotorDeDecisao.cs`) — resolve a `scoring_config`
    ativa, obtém o score via `IScoreProvider`, classifica faixa/rota e produz um caso
    sempre roteado para fila humana + registro de auditoria.
@@ -87,7 +111,7 @@ o `caseId` no scope).
 | **Nunca nega/aprova/bloqueia** | `MotorDeDecisao` só produz `score + faixa + rota`. Não há estado/endpoint de veredito. Enum `EstadoDoCaso` sem estado de bloqueio; pior caso = `PendenteRevisaoManual`. |
 | **Human-in-the-loop** | Saída sempre roteada para fila humana (`Rota.Normal`/`Rota.Reforcada`) — `Classificador.RotaPara`. |
 | **Não acusar o cliente** | Modelo de dados em termos de score/faixa/rota; sem campo "culpado/fraudador". |
-| **Fail-open** | `MotorDeDecisao.FailOpen`: sinal faltante/parcial ou queda do provider → `PendenteRevisaoManual`, causa auditada, nunca lança. Mock tem modo "simular indisponibilidade". |
+| **Fail-open** | `MotorDeDecisao.FailOpen`: nenhum sinal calculável (vazio ou 3/3 indisponíveis) ou queda do provider → `PendenteRevisaoManual`, causa auditada, nunca lança. Indisponibilidade parcial segue com score + `DadosIncompletos`. Mock e fontes têm modo "simular indisponibilidade". |
 | **Auditoria imutável** | Tabela `auditoria` + triggers `BEFORE UPDATE`/`BEFORE DELETE` (`SIGNAL SQLSTATE`) na migration `AuditoriaImutavel`. Demonstrável: UPDATE/DELETE disparam erro. |
 | **Config governada** | Tabela `scoring_config` versionada; versão ativa resolvida no cálculo e carimbada no caso e na auditoria. Nunca hard-coded, nunca env var. |
 

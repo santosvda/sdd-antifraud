@@ -7,7 +7,7 @@ namespace Antifraude.Tests.Unit;
 
 public sealed class FiltroAtributosProibidosTests
 {
-    private static Sinal S(string nome) => new(nome, 1.0, "teste");
+    private static Sinal S(string nome) => new(nome, ValorSinal.Ativo, "teste");
 
     [Fact]
     public void Atributo_proibido_e_removido_e_reportado()
