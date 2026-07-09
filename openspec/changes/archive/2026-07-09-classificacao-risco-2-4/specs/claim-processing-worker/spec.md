@@ -2,17 +2,22 @@
 
 ### Requirement: Fail-open em falha ou sinal faltante
 
-Quando um sinal está faltando/parcial, ou quando o `IScoreProvider` lança exceção ou dá timeout, o Worker SHALL criar o caso no estado `PENDENTE_REVISAO_MANUAL`, registrar a falha/ausência na trilha de auditoria, e roteá-lo para revisão humana. Em nenhum ramo o Worker rejeita, bloqueia ou descarta o sinistro; o caso sempre nasce e fica visível. Cada caso sem classificação MUST carimbar um `MotivoSemClassificacao` tipado (ex.: `SinalAusente`, `ProviderIndisponivel`, `ConfigIndisponivel`) ao lado da causa textual, distinguindo indisponibilidade esperada de anomalia técnica.
+Quando o `IScoreProvider` devolve "não avaliado" (cobertura de sinais abaixo do piso de 2), quando não há configuração de scoring ativa, ou quando o provider lança exceção ou dá timeout, o Worker SHALL criar o caso no estado `PENDENTE_REVISAO_MANUAL`, registrar a causa na trilha de auditoria e roteá-lo para revisão humana, sem fabricar score. Quando o provider devolve um score com **cobertura parcial** (exatamente 2 dos 3 sinais, pesos renormalizados), o Worker SHALL persistir o score e a faixa, marcar o caso e a auditoria como **cobertura parcial**, e roteá-lo pela faixa classificada. Em nenhum ramo o Worker rejeita, bloqueia ou descarta o sinistro; o caso sempre nasce e fica visível. Cada caso sem classificação MUST carimbar um `MotivoSemClassificacao` tipado ao lado da causa textual, distinguindo indisponibilidade esperada (`SinalAusente` para sinal faltante ou cobertura abaixo do piso, `ProviderIndisponivel` para exceção/timeout do provider) de anomalia técnica (`ConfigIndisponivel` para ausência de config ativa).
 
 #### Scenario: Provider indisponível não bloqueia o sinistro
 
-- **WHEN** o `IScoreProvider` está indisponível (mock em modo "simular queda") ao processar um sinistro
+- **WHEN** o `IScoreProvider` está indisponível (exceção/timeout) ao processar um sinistro
 - **THEN** o Worker cria o caso como `PENDENTE_REVISAO_MANUAL`, registra a falha na auditoria com motivo `ProviderIndisponivel`, e o sinistro segue — nada é bloqueado
 
-#### Scenario: Sinal parcial roteia para revisão manual
+#### Scenario: Cobertura abaixo do piso não é avaliada
 
-- **WHEN** um sinistro chega com sinais faltantes ou parciais
-- **THEN** o Worker calcula com o que tem, marca o caso como dados incompletos com motivo `SinalAusente`, roteia para revisão manual e registra a ausência na auditoria — sem assumir score baixo nem alto por omissão
+- **WHEN** um sinistro chega com 0 ou 1 dos 3 sinais presentes
+- **THEN** o provider devolve "não avaliado", o Worker cria o caso como `PENDENTE_REVISAO_MANUAL` com motivo `SinalAusente`, registra a ausência na auditoria e roteia para revisão humana — sem assumir score baixo nem alto por omissão
+
+#### Scenario: Cobertura parcial pontua e é marcada
+
+- **WHEN** um sinistro chega com exatamente 2 dos 3 sinais presentes
+- **THEN** o Worker persiste o score renormalizado e a faixa, marca o caso e a auditoria como cobertura parcial, e roteia pela faixa classificada — sem bloquear
 
 ## ADDED Requirements
 
