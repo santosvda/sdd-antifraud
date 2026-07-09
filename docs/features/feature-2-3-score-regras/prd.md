@@ -312,10 +312,11 @@ Funcionalidade: Cálculo de score e classificação por regras configuráveis
 
 ## 23. Cenários de Teste e Rastreabilidade Automatizada
 
-> **Status na `main` (2026-07-09):** esta feature está implementada na branch remota
-> `origin/feature/score-regras` (autora: Anna Ferreira, commit `6cf6618`), ainda **não
-> mergeada**. A suíte abaixo foi validada **isoladamente**, em worktree separada da
-> `main`, sem alterar código. Ver §23.5 — bloqueio de integração antes do merge.
+> **Status na `main` (2026-07-09):** feature mergeada via PR #1 (`fa7aeaa`, autora Anna
+> Ferreira). O bloqueio de integração descrito em §23.5 — contrato de `Sinal` (tri-estado)
+> e o nome `imei_serie` vs `imei_serie_divergente` — foi corrigido antes do merge (ver
+> `1e9ec97`, merge de `main` na branch). Validado na `main` pós-merge: build limpo e
+> suíte completa (106/106) verde, ver §23.4.
 
 Cada cenário espelha um item do Gherkin (seção 16), Caso de Uso (seção 14), Caso de
 Exceção (seção 15) ou Scenario do spec delta `risk-score-engine` (change OpenSpec
@@ -362,36 +363,33 @@ dotnet test tests/Antifraude.Tests --filter "FullyQualifiedName~MotorDeRegras|Fu
 dotnet test tests/Antifraude.Tests
 ```
 
-### 23.4 Resultado da execução isolada (2026-07-09)
+### 23.4 Resultado da execução
 
-Build e suíte completa rodados em worktree separada, apontando para
-`origin/feature/score-regras` (commit `6cf6618`), sem tocar a `main`:
+**Isolada, pré-merge (2026-07-09)** — build e suíte completa rodados em worktree
+separada, apontando para `origin/feature/score-regras` (commit `6cf6618`), sem tocar a
+`main`: `dotnet build` → 0 erros; `dotnet test` → **62/62 aprovados**.
 
-- `dotnet build Antifraude.sln` → **0 erros, 0 avisos**.
-- `dotnet test tests/Antifraude.Tests` → **62/62 aprovados** (unit + integração, incluindo
-  todos os cenários das seções 23.1 e 23.2, mais a suíte herdada de ingestão/auditoria).
+**Na `main`, pós-merge (2026-07-09, `fa7aeaa`)** — `dotnet build Antifraude.sln` → **0
+erros, 0 avisos**; `dotnet test tests/Antifraude.Tests` → **106/106 aprovados** (unit +
+integração de todas as features já mergeadas: ingestão, coleta de sinais, score & regras,
+auditoria imutável, console/API de leitura). Todos os métodos de teste listados em §23.1
+e §23.2 conferem exatamente com o código atual da `main`.
 
-### 23.5 Bloqueio de integração antes do merge (achados, não corrigidos)
+### 23.5 Bloqueio de integração pré-merge (resolvido)
 
-A branch é internamente consistente e verde **isolada**, mas foi criada a partir do
-commit `c33e910` — **antes** do merge da Coleta de Sinais (feature 2.2, `6b34ee2`), que
-mudou o contrato de `Sinal` (`Core/Dominio/Sinal.cs`) de `Valor: double` para o tri-estado
-`Estado: ValorSinal` (Ativo/Inativo/Indisponivel). Consequências caso a branch seja
-mergeada como está, sem ajuste:
+A branch foi criada a partir do commit `c33e910` — **antes** do merge da Coleta de
+Sinais (feature 2.2, `6b34ee2`), que mudou o contrato de `Sinal`
+(`Core/Dominio/Sinal.cs`) de `Valor: double` para o tri-estado `Estado: ValorSinal`
+(Ativo/Inativo/Indisponivel). Isso foi identificado antes do merge:
 
-1. **Não compila contra a `main` atual**: `MotorDeRegras.cs` lê `presentes[n].Valor != 0`
-   — o campo `Valor` não existe mais no `Sinal` da `main`.
-2. **Nome de sinal divergente (bug silencioso, não é só de compilação)**:
-   `SinaisConhecidos.ImeiSerie` nesta branch vale `"imei_serie"`, mas o calculador real da
-   feature 2.2 na `main` (`CalculadorImeiSerie.NomeDoSinal`) publica
-   `"imei_serie_divergente"`. Sem correção, o motor de regras nunca reconheceria esse
-   sinal como parte do conjunto fechado — ele sempre entraria como "ausente" na
-   renormalização, mesmo quando calculado e presente.
-3. `git merge-tree` aponta conflito textual real em 3 arquivos: `MotorDeDecisao.cs`,
-   `DbSeeder.cs`, `MockScoreProvider.cs` — todos tocados por ambas as features por
-   motivos relacionados ao mesmo contrato de `Sinal`.
+1. **Não compilava contra a `main`**: `MotorDeRegras.cs` lia `presentes[n].Valor != 0` —
+   campo removido no tri-estado.
+2. **Nome de sinal divergente (bug silencioso)**: `SinaisConhecidos.ImeiSerie` valia
+   `"imei_serie"` na branch, mas o calculador real da feature 2.2
+   (`CalculadorImeiSerie.NomeDoSinal`) publica `"imei_serie_divergente"`.
+3. Conflito textual em `MotorDeDecisao.cs`, `DbSeeder.cs`, `MockScoreProvider.cs`.
 
-Nenhum desses pontos foi corrigido nesta rodada (por decisão explícita: apenas testar e
-documentar a branch como está, sem mexer em código). Recomenda-se rebase/merge da branch
-com a `main` (ajustando `MotorDeRegras` ao tri-estado e ao nome correto do sinal) antes de
-abrir o PR desta feature.
+**Resolução confirmada**: o commit `1e9ec97` (merge de `main` na branch, antes do PR)
+corrigiu os 3 pontos — `MotorDeRegras.cs` hoje usa `Estado == ValorSinal.Ativo` e
+`SinaisConhecidos.ImeiSerie` hoje vale `"imei_serie_divergente"`, ambos conferidos
+diretamente no código da `main` pós-merge.
