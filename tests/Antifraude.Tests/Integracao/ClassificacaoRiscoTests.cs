@@ -56,7 +56,7 @@ public sealed class ClassificacaoRiscoTests(IntegrationFixture fixture)
     [Fact]
     public async Task Classifica_com_sinais_e_persiste_explicacao_e_versoes_no_caso_e_na_auditoria()
     {
-        var sinistro = ComSinais(new Sinal("reuso_imagem", 1.0, "teste"), new Sinal("imei_serie_divergente", 1.0, "teste"));
+        var sinistro = ComSinais(new Sinal("reuso_imagem", ValorSinal.Ativo, "teste"), new Sinal("imei_serie_divergente", ValorSinal.Ativo, "teste"));
 
         var (caso, alertas) = await ProcessarAsync(score: 72, provedorCai: false, sinistro);
 
@@ -77,7 +77,7 @@ public sealed class ClassificacaoRiscoTests(IntegrationFixture fixture)
     [Fact]
     public async Task Score_fora_de_faixa_nao_classifica_e_emite_alerta_severidade_alta()
     {
-        var sinistro = ComSinais(new Sinal("reuso_imagem", 1.0, "teste"));
+        var sinistro = ComSinais(new Sinal("reuso_imagem", ValorSinal.Ativo, "teste"));
 
         var (caso, alertas) = await ProcessarAsync(score: -5, provedorCai: false, sinistro);
 
@@ -95,7 +95,7 @@ public sealed class ClassificacaoRiscoTests(IntegrationFixture fixture)
     [Fact]
     public async Task Fail_open_esperado_carimba_motivo_e_nao_emite_alerta_tecnico()
     {
-        var sinistro = ComSinais(new Sinal("reuso_imagem", 1.0, "teste"));
+        var sinistro = ComSinais(new Sinal("reuso_imagem", ValorSinal.Ativo, "teste"));
 
         var (caso, alertas) = await ProcessarAsync(score: 0, provedorCai: true, sinistro);
 

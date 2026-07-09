@@ -37,6 +37,14 @@ public sealed record Sinistro(
     bool PayloadParcial = false,
     IReadOnlyList<Sinal>? Sinais = null)
 {
-    /// <summary>True quando não há sinais suficientes para uma decisão confiável.</summary>
-    public bool SinaisIncompletos => Sinais is null || Sinais.Count == 0;
+    /// <summary>
+    /// True quando não há nenhum sinal calculado: lista vazia ou todos indisponíveis.
+    /// Equivale a "não avaliado" — indisponibilidade parcial (1–2 sinais) NÃO é
+    /// incompleta: o caso segue para score com o que foi calculado.
+    /// </summary>
+    public bool SinaisIncompletos =>
+        Sinais is null || Sinais.Count == 0 || Sinais.All(s => s.Indisponivel);
+
+    /// <summary>True quando ao menos um sinal ficou indisponível (marca de dados incompletos).</summary>
+    public bool AlgumSinalIndisponivel => Sinais?.Any(s => s.Indisponivel) == true;
 }

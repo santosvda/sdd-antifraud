@@ -5,8 +5,8 @@ namespace Antifraude.Core.Classificacao;
 /// <summary>
 /// Gera a explicação textual da faixa por <b>template determinístico</b> (Feature 2.4):
 /// mesma entrada + mesma versão de template → mesma frase. Nomeia os sinais ativados
-/// (<c>Valor &gt; 0</c>) em linguagem de indício, menciona cobertura parcial quando houver, e
-/// nunca afirma fraude como fato consumado. É lógica pura do Core — sem infra.
+/// (<c>Estado == <see cref="ValorSinal.Ativo"/></c>) em linguagem de indício, menciona cobertura
+/// parcial quando houver, e nunca afirma fraude como fato consumado. É lógica pura do Core — sem infra.
 /// </summary>
 public static class GeradorDeExplicacao
 {
@@ -15,7 +15,7 @@ public static class GeradorDeExplicacao
     /// </summary>
     /// <param name="score">Score em [0,100].</param>
     /// <param name="faixa">Faixa atribuída (não pode ser <see cref="Faixa.Indeterminado"/>).</param>
-    /// <param name="sinais">Sinais do caso; apenas os ativados (<c>Valor &gt; 0</c>) são nomeados.</param>
+    /// <param name="sinais">Sinais do caso; apenas os ativados (<c>Estado == Ativo</c>) são nomeados.</param>
     /// <param name="coberturaParcial">True quando o score foi calculado com pesos renormalizados por ausência de sinal.</param>
     public static string Gerar(int score, Faixa faixa, IReadOnlyList<Sinal> sinais, bool coberturaParcial)
     {
@@ -24,7 +24,7 @@ public static class GeradorDeExplicacao
         var faixaTexto = TemplateExplicacao.FaixaTexto(faixa);
 
         var ativados = sinais
-            .Where(s => s.Valor > 0)
+            .Where(s => s.Estado == ValorSinal.Ativo)
             .Select(s => NomesDeSinais.Exibicao(s.Nome))
             .ToList();
 

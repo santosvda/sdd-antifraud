@@ -37,7 +37,16 @@ tests/
 cp .env.example .env              # 1ª vez — valores fake já sobem tudo
 docker compose up --build         # sobe api (8080) + worker + mysql (3306) + localstack (4566)
 # API em http://localhost:8080  ·  Swagger em http://localhost:8080/swagger
-docker compose run --rm api dotnet test   # roda unit + integração no container
+# Testes no container (a imagem `api` é runtime-only — use a imagem SDK):
+docker run --rm -v "$PWD":/src -w /src \
+  mcr.microsoft.com/dotnet/sdk:10.0 \
+  dotnet test tests/Antifraude.Tests --filter "FullyQualifiedName~Unit"   # só unit
+# Integração usa Testcontainers → precisa do socket do Docker + host override:
+docker run --rm -v "$PWD":/src -w /src \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal -e TESTCONTAINERS_RYUK_DISABLED=true \
+  mcr.microsoft.com/dotnet/sdk:10.0 \
+  dotnet test tests/Antifraude.Tests   # unit + integração
 docker compose logs -f worker     # acompanha o processamento (logs JSON, correl. por caseId)
 docker compose down               # derruba (volume nomeado do MySQL é preservado)
 ```

@@ -290,3 +290,84 @@ Funcionalidade: Coleta independente dos 3 sinais de risco
 | **Evidência** | Informação específica que justifica o valor atribuído a um sinal (ex.: qual sinistro colidiu no hash). |
 | **Velocity** | Sinal booleano ativado quando há ≥2 sinistros do mesmo cliente ou mesmo aparelho (IMEI) em janela de 90 dias. |
 | **Circuit breaker** | Mecanismo que interrompe temporariamente chamadas a uma fonte de dados com falha recorrente, evitando esperas desnecessárias. |
+
+## 23. Cenários de Teste e Rastreabilidade Automatizada
+
+Cada cenário abaixo espelha um item do Gherkin (seção 16), um Caso de Uso (seção 14) ou um
+Caso de Exceção (seção 15), com o teste automatizado (unit ou integração) que o cobre hoje
+no repositório. Convenção: `arquivo::método`.
+
+### 23.1 Calculadores (unit) — `tests/Antifraude.Tests/Unit/Coleta/`
+
+| Cenário | Teste automatizado |
+|---|---|
+| Reuso de imagem: colisão ≤10 ativa com evidência da melhor colisão | `CalculadorReusoImagemTests::Colisao_dentro_do_limiar_ativa_com_evidencia_da_melhor_colisao` |
+| Reuso de imagem: sem colisão fica inativo com evidência dos hashes comparados | `CalculadorReusoImagemTests::Sem_colisao_e_inativo_com_evidencia_dos_hashes_comparados` |
+| Reuso de imagem: distância 11 fica fora do limiar (borda do Hamming ≤10) | `CalculadorReusoImagemTests::Distancia_11_fica_fora_do_limiar` |
+| Reuso de imagem: sem foto no payload → dado ausente, sem tocar a fonte | `CalculadorReusoImagemTests::Sem_foto_e_dado_ausente_sem_tocar_a_fonte` |
+| Reuso de imagem: fonte fora do ar → indisponível (fonte externa) | `CalculadorReusoImagemTests::Fonte_fora_e_indisponivel_por_fonte_externa` |
+| Reuso de imagem: hashes do caso atual são registrados após o cálculo (upsert idempotente) | `CalculadorReusoImagemTests::Registra_hashes_do_caso_atual_apos_o_calculo` |
+| IMEI×série: confere com o cadastro → inativo, identificadores mascarados | `CalculadorImeiSerieTests::Imei_conferindo_e_inativo_com_identificadores_mascarados` |
+| IMEI×série: diverge do cadastro → ativo, motivo "diverge" | `CalculadorImeiSerieTests::Imei_divergente_ativa_com_motivo_diverge` |
+| IMEI×série: não cadastrado na apólice → ativo, motivo "não cadastrado" | `CalculadorImeiSerieTests::Apolice_sem_registro_ativa_com_motivo_nao_cadastrado` |
+| IMEI×série: sem IMEI/série no payload → dado ausente, sem tocar a fonte | `CalculadorImeiSerieTests::Sem_imei_e_sem_serie_e_dado_ausente_sem_tocar_a_fonte` |
+| IMEI×série: sem número de apólice → dado ausente | `CalculadorImeiSerieTests::Sem_apolice_e_dado_ausente` |
+| IMEI×série: fonte fora do ar → indisponível (fonte externa) | `CalculadorImeiSerieTests::Fonte_fora_e_indisponivel_por_fonte_externa` |
+| Velocity: ≥2 anteriores do mesmo cliente em 90d → ativo, com contagem e janela | `CalculadorVelocityTests::Dois_anteriores_do_mesmo_cliente_ativa_com_contagem_e_janela` |
+| Velocity: ≥2 anteriores do mesmo aparelho (IMEI) também ativa | `CalculadorVelocityTests::Dois_anteriores_do_mesmo_aparelho_tambem_ativa` |
+| Velocity: menos de 2 anteriores → inativo | `CalculadorVelocityTests::Menos_de_dois_e_inativo` |
+| Velocity: janela de 90 dias contada a partir de `abertoEm` | `CalculadorVelocityTests::Janela_de_90_dias_conta_a_partir_do_abertoEm` |
+| Velocity: sem idCliente e sem IMEI → dado ausente, sem tocar a fonte | `CalculadorVelocityTests::Sem_cliente_e_sem_imei_e_dado_ausente_sem_tocar_a_fonte` |
+| Velocity: só o IMEI presente já permite calcular | `CalculadorVelocityTests::So_o_imei_presente_ja_permite_calcular` |
+| Velocity: fonte fora do ar → indisponível (fonte externa) | `CalculadorVelocityTests::Fonte_fora_e_indisponivel_por_fonte_externa` |
+| Velocity: sinistro atual é registrado no histórico após o cálculo (upsert idempotente) | `CalculadorVelocityTests::Registra_o_sinistro_atual_no_historico_apos_o_calculo` |
+| Resiliência: timeout da fonte vira indisponível | `CircuitoDaFonteTests::Timeout_da_fonte_vira_TimeoutException_que_o_calculador_converte_em_indisponivel` |
+| Resiliência: falhas consecutivas abrem o circuito (fail-fast na próxima chamada) | `CircuitoDaFonteTests::Falhas_consecutivas_abrem_o_circuito_e_a_proxima_chamada_falha_imediato` |
+| Resiliência: sucesso zera o contador de falhas do circuito | `CircuitoDaFonteTests::Sucesso_zera_o_contador_de_falhas` |
+| Resiliência: simulação de indisponibilidade via env var falha toda chamada | `CircuitoDaFonteTests::Simular_indisponibilidade_falha_toda_chamada_imediatamente` |
+| Coletor: produz exatamente 1 sinal por calculador, em paralelo | `ColetorDeSinaisTests::Produz_um_sinal_por_calculador` |
+| Coletor: exceção de um calculador não escapa nem afeta os demais sinais | `ColetorDeSinaisTests::Excecao_de_um_calculador_nao_escapa_nem_afeta_os_demais` |
+
+### 23.2 Tri-estado e domínio (unit) — `tests/Antifraude.Tests/Unit/SinaisTriEstadoTests.cs`
+
+| Cenário | Teste automatizado |
+|---|---|
+| Lista de sinais vazia é tratada como incompleta | `Lista_vazia_e_incompleta` |
+| Todos os 3 sinais indisponíveis equivale a "não avaliado" (incompleto) | `Todos_indisponiveis_e_incompleto_equivale_a_nao_avaliado` |
+| 1 sinal calculado + 2 indisponíveis → não incompleto, mas `AlgumSinalIndisponivel` marca dados incompletos | `Um_sinal_calculado_ja_nao_e_incompleto` |
+| Serialização: estado legível (texto, não número) e evidência como objeto JSON | `Sinal_serializa_para_json_com_estado_legivel_e_evidencia_estruturada` |
+| Score mock ignora "indisponível" e nunca o trata como "falso" (soma só ativo/inativo) | `Mock_de_score_ignora_indisponivel_e_nunca_o_trata_como_falso` |
+
+### 23.3 Fluxo ponta a ponta (integração, Testcontainers) — `tests/Antifraude.Tests/Integracao/ColetaSinaisTests.cs`
+
+| Cenário (Gherkin §16 / Caso de Uso §14 / Exceção §15) | Teste automatizado |
+|---|---|
+| Fluxo feliz: payload completo → 3 sinais calculados com evidência na auditoria | `Fluxo_feliz_calcula_os_3_sinais_com_evidencia_na_auditoria` |
+| Falha em uma fonte não impede os demais: repositório de imagens fora → só `reuso_imagem` indisponível, caso segue com score e `DadosIncompletos=true` | `Fonte_de_imagens_fora_marca_so_o_reuso_como_indisponivel` |
+| Dado ausente no payload: sem aparelho → `imei_serie_divergente` indisponível (dado ausente), `payloadParcial` preservado na auditoria | `Payload_parcial_sem_aparelho_marca_imei_serie_como_dado_ausente` |
+| 3 fontes indisponíveis → fail-open (`PendenteRevisaoManual`), score nulo, rota reforçada, motivos auditados | `Tres_fontes_fora_e_fail_open_com_os_motivos_auditados` |
+| Reuso de imagem ponta a ponta: mesma referência de foto em 2 sinistros → 2º caso com sinal ativo apontando o sinistro anterior e distância 0 | `Reuso_de_imagem_ponta_a_ponta_aponta_o_sinistro_colidido` |
+| Velocity ponta a ponta: 3º sinistro do mesmo cliente/aparelho em <90d → ativo com contagem e janela; 2º ainda inativo (regra pede ≥2 anteriores) | `Velocity_ativa_no_terceiro_sinistro_do_mesmo_cliente_em_90_dias` |
+
+### 23.4 Como executar
+
+```bash
+# Suíte completa (unit + integração — exige Docker no host para Testcontainers)
+dotnet test tests/Antifraude.Tests
+
+# Só os cenários desta feature
+dotnet test tests/Antifraude.Tests --filter "FullyQualifiedName~Coleta|FullyQualifiedName~SinaisTriEstado"
+
+# Só integração (fluxo ponta a ponta via API → fila → worker simulado → MySQL)
+dotnet test tests/Antifraude.Tests --filter "FullyQualifiedName~ColetaSinaisTests"
+```
+
+### 23.5 Gaps conhecidos
+
+- Não há teste automatizado dedicado para o cenário "payload sem foto" no fluxo de
+  integração ponta a ponta (só no unit `CalculadorReusoImagemTests`) — considerar
+  adicionar se o comportamento de `payloadParcial` sem foto precisar de evidência
+  específica na auditoria de ponta a ponta.
+- Métricas de disponibilidade por sinal e latência por fonte (RNF de observabilidade,
+  seção 10) não têm teste automatizado — hoje são verificadas apenas via inspeção manual
+  dos logs estruturados.

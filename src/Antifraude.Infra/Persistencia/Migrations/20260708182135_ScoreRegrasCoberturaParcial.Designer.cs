@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Antifraude.Infra.Persistencia.Migrations
 {
     [DbContext(typeof(AntifraudeDbContext))]
-    [Migration("20260708181647_ClassificacaoRisco")]
-    partial class ClassificacaoRisco
+    [Migration("20260708182135_ScoreRegrasCoberturaParcial")]
+    partial class ScoreRegrasCoberturaParcial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -32,6 +32,10 @@ namespace Antifraude.Infra.Persistencia.Migrations
                         .HasColumnType("char(36)")
                         .HasColumnName("case_id");
 
+                    b.Property<bool>("CoberturaParcial")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("cobertura_parcial");
+
                     b.Property<DateTimeOffset>("CriadoEm")
                         .HasColumnType("datetime(6)")
                         .HasColumnName("criado_em");
@@ -46,21 +50,11 @@ namespace Antifraude.Infra.Persistencia.Migrations
                         .HasColumnType("varchar(40)")
                         .HasColumnName("estado");
 
-                    b.Property<string>("Explicacao")
-                        .HasMaxLength(2000)
-                        .HasColumnType("varchar(2000)")
-                        .HasColumnName("explicacao");
-
                     b.Property<string>("Faixa")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)")
                         .HasColumnName("faixa");
-
-                    b.Property<string>("Motivo")
-                        .HasMaxLength(40)
-                        .HasColumnType("varchar(40)")
-                        .HasColumnName("motivo");
 
                     b.Property<bool>("PayloadParcial")
                         .HasColumnType("tinyint(1)")
@@ -85,11 +79,6 @@ namespace Antifraude.Infra.Persistencia.Migrations
                         .HasMaxLength(60)
                         .HasColumnType("varchar(60)")
                         .HasColumnName("versao_provider");
-
-                    b.Property<string>("VersaoTemplate")
-                        .HasMaxLength(40)
-                        .HasColumnType("varchar(40)")
-                        .HasColumnName("versao_template");
 
                     b.HasKey("CaseId");
 
@@ -122,21 +111,15 @@ namespace Antifraude.Infra.Persistencia.Migrations
                         .HasColumnType("varchar(1000)")
                         .HasColumnName("causa");
 
-                    b.Property<string>("Explicacao")
-                        .HasMaxLength(2000)
-                        .HasColumnType("varchar(2000)")
-                        .HasColumnName("explicacao");
+                    b.Property<bool>("CoberturaParcial")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("cobertura_parcial");
 
                     b.Property<string>("Faixa")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)")
                         .HasColumnName("faixa");
-
-                    b.Property<string>("Motivo")
-                        .HasMaxLength(40)
-                        .HasColumnType("varchar(40)")
-                        .HasColumnName("motivo");
 
                     b.Property<bool>("PayloadParcial")
                         .HasColumnType("tinyint(1)")
@@ -166,11 +149,6 @@ namespace Antifraude.Infra.Persistencia.Migrations
                         .HasMaxLength(60)
                         .HasColumnType("varchar(60)")
                         .HasColumnName("versao_provider");
-
-                    b.Property<string>("VersaoTemplate")
-                        .HasMaxLength(40)
-                        .HasColumnType("varchar(40)")
-                        .HasColumnName("versao_template");
 
                     b.HasKey("Id");
 

@@ -309,3 +309,89 @@ Funcionalidade: Cálculo de score e classificação por regras configuráveis
 | **Fail-open** | Comportamento em que, na indisponibilidade de um serviço, o processo principal continua sem travar; aqui, sem score calculado, sinalizado explicitamente. |
 | **Atributo proibido** | Atributo sensível (raça/cor, gênero, orientação sexual, religião, deficiência, idade) que nunca pode influenciar o score. |
 | **Configuração versionada** | Conjunto de pesos e limiares externalizado do código, identificado por versão, para permitir calibração auditável. |
+
+## 23. Cenários de Teste e Rastreabilidade Automatizada
+
+> **Status na `main` (2026-07-09):** esta feature está implementada na branch remota
+> `origin/feature/score-regras` (autora: Anna Ferreira, commit `6cf6618`), ainda **não
+> mergeada**. A suíte abaixo foi validada **isoladamente**, em worktree separada da
+> `main`, sem alterar código. Ver §23.5 — bloqueio de integração antes do merge.
+
+Cada cenário espelha um item do Gherkin (seção 16), Caso de Uso (seção 14), Caso de
+Exceção (seção 15) ou Scenario do spec delta `risk-score-engine` (change OpenSpec
+`score-regras`), com o teste automatizado que o cobre hoje na branch da Anna. Convenção:
+`arquivo::método`.
+
+### 23.1 Motor de Regras e Filtro (unit) — `tests/Antifraude.Tests/Unit/`
+
+| Cenário | Teste automatizado |
+|---|---|
+| Três sinais verdadeiros somam os pesos (score 100 com config v2) | `MotorDeRegrasTests::Tres_sinais_verdadeiros_somam_os_pesos` |
+| Sinal presente e falso soma zero, sem marcar cobertura parcial (os 3 estão presentes) | `MotorDeRegrasTests::Sinal_presente_e_falso_soma_zero_sem_cobertura_parcial` |
+| Nome de sinal desconhecido não entra no cálculo (whitelist fechada) | `MotorDeRegrasTests::Nome_de_sinal_desconhecido_nao_entra_no_calculo` |
+| Dois sinais presentes renormalizam pesos para somar 100 e marcam cobertura parcial | `MotorDeRegrasTests::Dois_sinais_presentes_renormalizam_e_marcam_cobertura_parcial` |
+| Renormalização com 1 sinal verdadeiro arredonda deterministicamente (`MidpointRounding.AwayFromZero`) | `MotorDeRegrasTests::Renormalizacao_com_um_verdadeiro_arredonda_deterministicamente` |
+| Cobertura abaixo do piso (0 ou 1 sinal presente) não avalia — "não avaliado", sem score fabricado | `MotorDeRegrasTests::Cobertura_abaixo_do_piso_nao_avalia` (theory: 0 e 1) |
+| Mesma entrada + mesma versão de config → mesmo resultado nas duas execuções (RF10) | `MotorDeRegrasTests::Calculo_e_deterministico` |
+| Atributo proibido é filtrado antes do cálculo e reportado como evento de conformidade | `MotorDeRegrasTests::Atributo_proibido_e_filtrado_e_reportado` |
+| Filtro: atributo proibido é removido da entrada e gera evento de conformidade | `FiltroAtributosProibidosTests::Atributo_proibido_e_removido_e_reportado` |
+| Filtro: nome desconhecido (fora da whitelist e da blocklist) é descartado sem evento | `FiltroAtributosProibidosTests::Nome_desconhecido_nao_proibido_e_descartado_sem_evento` |
+| Filtro: detecção de atributo proibido é case-insensitive | `FiltroAtributosProibidosTests::Deteccao_de_proibido_e_case_insensitive` |
+| Filtro: entrada nula não quebra o filtro | `FiltroAtributosProibidosTests::Entrada_nula_nao_quebra` |
+| Classificador: bordas de faixa da config v2 (29→baixo, 30→médio, 70→médio, 71→alto) | `ClassificadorTests::FaixaPara_v2_respeita_baixo_menor_30_medio_ate_70_alto_maior_70` (theory) |
+| `MotorDeDecisao`: `Score null` (não avaliado) gera fail-open com dados incompletos | `MotorDeDecisaoTests::Provider_nao_avaliado_gera_fail_open_com_dados_incompletos` |
+| `MotorDeDecisao`: cobertura parcial pontua e marca caso + auditoria | `MotorDeDecisaoTests::Cobertura_parcial_pontua_e_marca_caso_e_auditoria` |
+| `MotorDeDecisao`: atributo proibido filtrado vira evento de conformidade na auditoria | `MotorDeDecisaoTests::Atributo_proibido_filtrado_vira_evento_de_conformidade_na_auditoria` |
+
+### 23.2 Fluxo ponta a ponta (integração, Testcontainers) — `tests/Antifraude.Tests/Integracao/ScoreRegrasTests.cs`
+
+| Cenário (Gherkin §16 / Caso de Uso §14) | Teste automatizado |
+|---|---|
+| 3 sinais verdadeiros pontuam alto com a config v2 (50/30/20, limiares 30/71) | `Tres_sinais_verdadeiros_pontuam_alto_com_config_v2` |
+| 2 sinais presentes renormalizam e marcam cobertura parcial no caso/auditoria | `Dois_sinais_renormalizam_e_marcam_cobertura_parcial` |
+| 1 único sinal presente não é avaliado → `PendenteRevisaoManual` (fail-open) | `Um_unico_sinal_nao_e_avaliado_e_vira_pendente_revisao_manual` |
+
+### 23.3 Como executar (dentro da branch/worktree da Anna, isolada da `main`)
+
+```bash
+# a partir de uma worktree/checkout de origin/feature/score-regras
+dotnet build Antifraude.sln
+dotnet test tests/Antifraude.Tests --filter "FullyQualifiedName~MotorDeRegras|FullyQualifiedName~FiltroAtributosProibidos|FullyQualifiedName~ScoreRegrasTests"
+
+# suíte completa da branch (exige Docker no host para Testcontainers)
+dotnet test tests/Antifraude.Tests
+```
+
+### 23.4 Resultado da execução isolada (2026-07-09)
+
+Build e suíte completa rodados em worktree separada, apontando para
+`origin/feature/score-regras` (commit `6cf6618`), sem tocar a `main`:
+
+- `dotnet build Antifraude.sln` → **0 erros, 0 avisos**.
+- `dotnet test tests/Antifraude.Tests` → **62/62 aprovados** (unit + integração, incluindo
+  todos os cenários das seções 23.1 e 23.2, mais a suíte herdada de ingestão/auditoria).
+
+### 23.5 Bloqueio de integração antes do merge (achados, não corrigidos)
+
+A branch é internamente consistente e verde **isolada**, mas foi criada a partir do
+commit `c33e910` — **antes** do merge da Coleta de Sinais (feature 2.2, `6b34ee2`), que
+mudou o contrato de `Sinal` (`Core/Dominio/Sinal.cs`) de `Valor: double` para o tri-estado
+`Estado: ValorSinal` (Ativo/Inativo/Indisponivel). Consequências caso a branch seja
+mergeada como está, sem ajuste:
+
+1. **Não compila contra a `main` atual**: `MotorDeRegras.cs` lê `presentes[n].Valor != 0`
+   — o campo `Valor` não existe mais no `Sinal` da `main`.
+2. **Nome de sinal divergente (bug silencioso, não é só de compilação)**:
+   `SinaisConhecidos.ImeiSerie` nesta branch vale `"imei_serie"`, mas o calculador real da
+   feature 2.2 na `main` (`CalculadorImeiSerie.NomeDoSinal`) publica
+   `"imei_serie_divergente"`. Sem correção, o motor de regras nunca reconheceria esse
+   sinal como parte do conjunto fechado — ele sempre entraria como "ausente" na
+   renormalização, mesmo quando calculado e presente.
+3. `git merge-tree` aponta conflito textual real em 3 arquivos: `MotorDeDecisao.cs`,
+   `DbSeeder.cs`, `MockScoreProvider.cs` — todos tocados por ambas as features por
+   motivos relacionados ao mesmo contrato de `Sinal`.
+
+Nenhum desses pontos foi corrigido nesta rodada (por decisão explícita: apenas testar e
+documentar a branch como está, sem mexer em código). Recomenda-se rebase/merge da branch
+com a `main` (ajustando `MotorDeRegras` ao tri-estado e ao nome correto do sinal) antes de
+abrir o PR desta feature.

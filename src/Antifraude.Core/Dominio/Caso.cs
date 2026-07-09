@@ -28,6 +28,9 @@ public sealed class Caso
     /// <summary>True quando os sinais chegaram faltantes/parciais.</summary>
     public bool DadosIncompletos { get; init; }
 
+    /// <summary>True quando o score foi calculado sobre cobertura parcial (2 de 3 sinais, pesos renormalizados).</summary>
+    public bool CoberturaParcial { get; init; }
+
     /// <summary>True quando o payload de ingestão veio incompleto (campos não-estruturais ausentes).</summary>
     public bool PayloadParcial { get; init; }
 

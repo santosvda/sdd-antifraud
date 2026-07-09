@@ -44,14 +44,14 @@ internal sealed class FakeConfigRepository(ScoringConfig? config = null) : IScor
             : Task.FromResult(_config);
 }
 
-/// <summary>Provider de score controlável: valor fixo ou queda sob demanda.</summary>
-internal sealed class FakeScoreProvider(int score = 0, bool lancar = false, string versao = "fake-v1")
+/// <summary>Provider de score controlável: valor fixo, resultado explícito, ou queda sob demanda.</summary>
+internal sealed class FakeScoreProvider(int score = 0, bool lancar = false, string versao = "fake-v1", ResultadoScore? resultado = null)
     : IScoreProvider
 {
     public string Versao => versao;
 
-    public Task<int> CalcularScoreAsync(Sinistro sinistro, ScoringConfig config, CancellationToken ct = default) =>
+    public Task<ResultadoScore> CalcularScoreAsync(Sinistro sinistro, ScoringConfig config, CancellationToken ct = default) =>
         lancar
             ? throw new InvalidOperationException("provider indisponível (simulado)")
-            : Task.FromResult(score);
+            : Task.FromResult(resultado ?? new ResultadoScore(score, false, [], [], null, []));
 }

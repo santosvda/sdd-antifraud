@@ -19,6 +19,24 @@ public sealed class ClassificadorTests
     public void FaixaPara_respeita_os_limiares_da_config(int score, Faixa esperada) =>
         Classificador.FaixaPara(score, Config).Should().Be(esperada);
 
+    private static readonly ScoringConfig ConfigV2 = new()
+    {
+        Versao = 2,
+        Ativa = true,
+        LimiarMedio = 30,
+        LimiarAlto = 71,
+        Pesos = new Dictionary<string, double>(),
+        CriadaEm = DateTimeOffset.UnixEpoch,
+    };
+
+    [Theory]
+    [InlineData(29, Faixa.Baixo)]
+    [InlineData(30, Faixa.Medio)]
+    [InlineData(70, Faixa.Medio)]
+    [InlineData(71, Faixa.Alto)]
+    public void FaixaPara_v2_respeita_baixo_menor_30_medio_ate_70_alto_maior_70(int score, Faixa esperada) =>
+        Classificador.FaixaPara(score, ConfigV2).Should().Be(esperada);
+
     [Theory]
     [InlineData(Faixa.Baixo, Rota.Normal)]
     [InlineData(Faixa.Medio, Rota.Normal)]

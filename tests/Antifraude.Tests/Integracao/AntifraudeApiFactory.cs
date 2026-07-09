@@ -13,7 +13,8 @@ namespace Antifraude.Tests.Integracao;
 public sealed class AntifraudeApiFactory(
     IntegrationFixture fixture,
     bool providerIndisponivel = false,
-    Action<IServiceCollection>? configurarServicos = null)
+    Action<IServiceCollection>? configurarServicos = null,
+    IReadOnlyDictionary<string, string>? settings = null)
     : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -27,6 +28,11 @@ public sealed class AntifraudeApiFactory(
         builder.UseSetting("AWS_ACCESS_KEY_ID", "test");
         builder.UseSetting("AWS_SECRET_ACCESS_KEY", "test");
         builder.UseSetting("MOCK_SCORE_PROVIDER_INDISPONIVEL", providerIndisponivel ? "true" : "false");
+
+        foreach (var (chave, valor) in settings ?? new Dictionary<string, string>())
+        {
+            builder.UseSetting(chave, valor);
+        }
 
         if (configurarServicos is not null)
         {
