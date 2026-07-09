@@ -37,5 +37,8 @@ public sealed class RegistroAuditoria
     /// <summary>True quando o payload de ingestão veio incompleto (herdado do sinistro).</summary>
     public bool PayloadParcial { get; init; }
 
+    /// <summary>True quando o score foi calculado sobre cobertura parcial (2 de 3 sinais, renormalizados).</summary>
+    public bool CoberturaParcial { get; init; }
+
     public DateTimeOffset CarimbadoEm { get; init; }
 }

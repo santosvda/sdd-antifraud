@@ -48,15 +48,27 @@ public sealed class MotorDeDecisao(
             return FailOpen(sinistro, config.Versao, "Sinais faltantes ou indisponíveis", dadosIncompletos: true);
         }
 
-        int score;
+        ResultadoScore resultado;
         try
         {
-            score = await scoreProvider.CalcularScoreAsync(sinistro, config, ct).ConfigureAwait(false);
+            resultado = await scoreProvider.CalcularScoreAsync(sinistro, config, ct).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             // Provider indisponível/timeout: captura, audita a causa, não bloqueia.
             return FailOpen(sinistro, config.Versao, $"IScoreProvider indisponível: {ex.Message}");
+        }
+
+        var conformidade = NotaDeConformidade(resultado.AtributosProibidosFiltrados);
+
+        // Cobertura insuficiente: não fabrica score, o caso nasce visível para revisão.
+        if (resultado.Score is not int score)
+        {
+            return FailOpen(
+                sinistro,
+                config.Versao,
+                Concatenar(resultado.MotivoNaoAvaliado ?? "Score não avaliado", conformidade),
+                dadosIncompletos: true);
         }
 
         score = Math.Clamp(score, 0, 100);
@@ -69,9 +81,17 @@ public sealed class MotorDeDecisao(
             Classificador.RotaPara(faixa),
             score,
             config.Versao,
-            causa: null,
-            dadosIncompletos: sinistro.AlgumSinalIndisponivel);
+            causa: conformidade,
+            dadosIncompletos: sinistro.AlgumSinalIndisponivel,
+            coberturaParcial: resultado.CoberturaParcial);
     }
+
+    /// <summary>Compõe a nota de evento de conformidade quando atributos proibidos foram filtrados.</summary>
+    private static string? NotaDeConformidade(IReadOnlyList<string> proibidos) =>
+        proibidos.Count == 0 ? null : $"Atributos proibidos filtrados: {string.Join(", ", proibidos)}";
+
+    private static string Concatenar(string causa, string? nota) =>
+        nota is null ? causa : $"{causa} | {nota}";
 
     private ResultadoDecisao FailOpen(Sinistro sinistro, int versaoConfig, string causa, bool dadosIncompletos = false) =>
         Montar(
@@ -82,7 +102,8 @@ public sealed class MotorDeDecisao(
             score: null,
             versaoConfig,
             causa,
-            dadosIncompletos);
+            dadosIncompletos,
+            coberturaParcial: false);
 
     private ResultadoDecisao Montar(
         Sinistro sinistro,
@@ -92,7 +113,8 @@ public sealed class MotorDeDecisao(
         int? score,
         int versaoConfig,
         string? causa,
-        bool dadosIncompletos)
+        bool dadosIncompletos,
+        bool coberturaParcial)
     {
         var agora = _clock.GetUtcNow();
 
@@ -107,6 +129,7 @@ public sealed class MotorDeDecisao(
             VersaoProvider = scoreProvider.Versao,
             DadosIncompletos = dadosIncompletos,
             PayloadParcial = sinistro.PayloadParcial,
+            CoberturaParcial = coberturaParcial,
             CriadoEm = agora,
         };
 
@@ -123,6 +146,7 @@ public sealed class MotorDeDecisao(
             Causa = causa,
             Ator = Ator,
             PayloadParcial = sinistro.PayloadParcial,
+            CoberturaParcial = coberturaParcial,
             CarimbadoEm = agora,
         };
 

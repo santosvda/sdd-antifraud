@@ -5,9 +5,11 @@ using Microsoft.Extensions.Logging;
 namespace Antifraude.Infra.Persistencia;
 
 /// <summary>
-/// Semeia uma versão ativa inicial da <c>scoring_config</c> (v1) quando a tabela está
-/// vazia. Pesos e limiares vivem no banco — nunca hard-coded no caminho de decisão nem
-/// em env var; estes valores são apenas o ponto de partida governável.
+/// Semeia a configuração de scoring versionada. A v1 é o placeholder histórico da fundação
+/// (mantido inativo). A <b>v2</b> é a config governada da Feature 2.3 (pesos 50/30/20 sobre
+/// <c>reuso_imagem</c>/<c>imei_serie_divergente</c>/<c>velocity</c>, limiares 30/71) e nasce <b>ativa</b>.
+/// Idempotente: só age se a v2 ainda não existir. Toda mudança de peso/limiar é uma nova
+/// versão — nunca reescreve casos anteriores (BR7).
 /// Semeia também a base fake de <c>apolices</c> (fonte do sinal IMEI×série) com
 /// exemplos que cobrem os 3 ramos: confere, diverge e não cadastrado (= apólice ausente).
 /// </summary>
@@ -21,29 +23,53 @@ public static class DbSeeder
 
     private static async Task SeedScoringConfigAsync(AntifraudeDbContext db, ILogger? logger, CancellationToken ct)
     {
-        if (await db.ScoringConfigs.AnyAsync(ct).ConfigureAwait(false))
+        var versoes = await db.ScoringConfigs.Select(c => c.Versao).ToListAsync(ct).ConfigureAwait(false);
+        if (versoes.Contains(2))
         {
             return;
         }
 
-        var v1 = new ScoringConfig
+        var agora = DateTimeOffset.UtcNow;
+
+        // Desativa qualquer versão ativa anterior (Ativa é init-only no domínio → via SQL).
+        await db.Database.ExecuteSqlRawAsync("UPDATE scoring_config SET ativa = 0", ct).ConfigureAwait(false);
+
+        // Preserva o histórico: se a tabela estava vazia, registra a v1 placeholder inativa.
+        if (versoes.Count == 0)
         {
-            Versao = 1,
+            db.ScoringConfigs.Add(new ScoringConfig
+            {
+                Versao = 1,
+                Ativa = false,
+                Pesos = new Dictionary<string, double>
+                {
+                    ["reuso_imagem"] = 30,
+                    ["imei_serie_divergente"] = 25,
+                    ["geolocalizacao_inconsistente"] = 20,
+                },
+                LimiarMedio = 30,
+                LimiarAlto = 60,
+                CriadaEm = agora,
+            });
+        }
+
+        db.ScoringConfigs.Add(new ScoringConfig
+        {
+            Versao = 2,
             Ativa = true,
             Pesos = new Dictionary<string, double>
             {
-                ["reuso_imagem"] = 30,
-                ["imei_serie_divergente"] = 25,
-                ["geolocalizacao_inconsistente"] = 20,
+                [SinaisConhecidos.ReusoImagem] = 50,
+                [SinaisConhecidos.ImeiSerie] = 30,
+                [SinaisConhecidos.Velocity] = 20,
             },
             LimiarMedio = 30,
-            LimiarAlto = 60,
-            CriadaEm = DateTimeOffset.UtcNow,
-        };
+            LimiarAlto = 71,
+            CriadaEm = agora,
+        });
 
-        db.ScoringConfigs.Add(v1);
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
-        logger?.LogInformation("scoring_config v1 semeada (ativa).");
+        logger?.LogInformation("scoring_config v2 semeada (ativa); versões anteriores desativadas.");
     }
 
     private static async Task SeedApolicesAsync(AntifraudeDbContext db, ILogger? logger, CancellationToken ct)

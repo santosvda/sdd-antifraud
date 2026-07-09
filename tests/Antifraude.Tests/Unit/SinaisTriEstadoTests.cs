@@ -76,10 +76,10 @@ public sealed class SinaisTriEstadoTests
         };
 
         // Ativo soma o peso; inativo soma zero; indisponível é ignorado (não vira 0 "falso").
-        var score = await provider.CalcularScoreAsync(
+        var resultado = await provider.CalcularScoreAsync(
             Com(Ativo("reuso_imagem"), Inativo("imei_serie_divergente"), Indisponivel("velocity")),
             config);
 
-        score.Should().Be(30);
+        resultado.Score.Should().Be(30);
     }
 }

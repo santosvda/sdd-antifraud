@@ -4,6 +4,7 @@ using Antifraude.Infra.Persistencia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Antifraude.Infra.Persistencia.Migrations
 {
     [DbContext(typeof(AntifraudeDbContext))]
-    partial class AntifraudeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260708182135_ScoreRegrasCoberturaParcial")]
+    partial class ScoreRegrasCoberturaParcial
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -251,101 +254,6 @@ namespace Antifraude.Infra.Persistencia.Migrations
                         .HasDatabaseName("ix_scoring_config_ativa");
 
                     b.ToTable("scoring_config", (string)null);
-                });
-
-            modelBuilder.Entity("Antifraude.Infra.Persistencia.ApoliceRegistro", b =>
-                {
-                    b.Property<string>("Apolice")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
-                        .HasColumnName("apolice");
-
-                    b.Property<string>("Imei")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)")
-                        .HasColumnName("imei");
-
-                    b.Property<string>("NumeroSerie")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
-                        .HasColumnName("numero_serie");
-
-                    b.HasKey("Apolice");
-
-                    b.ToTable("apolices", (string)null);
-                });
-
-            modelBuilder.Entity("Antifraude.Infra.Persistencia.HistoricoSinistroRegistro", b =>
-                {
-                    b.Property<string>("IdSinistro")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
-                        .HasColumnName("id_sinistro");
-
-                    b.Property<DateTimeOffset>("AbertoEm")
-                        .HasColumnType("datetime(6)")
-                        .HasColumnName("aberto_em");
-
-                    b.Property<string>("IdCliente")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
-                        .HasColumnName("id_cliente");
-
-                    b.Property<string>("Imei")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)")
-                        .HasColumnName("imei");
-
-                    b.HasKey("IdSinistro");
-
-                    b.HasIndex("IdCliente")
-                        .HasDatabaseName("ix_historico_sinistros_id_cliente");
-
-                    b.HasIndex("Imei")
-                        .HasDatabaseName("ix_historico_sinistros_imei");
-
-                    b.ToTable("historico_sinistros", (string)null);
-                });
-
-            modelBuilder.Entity("Antifraude.Infra.Persistencia.ImagemHashRegistro", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTimeOffset>("CriadoEm")
-                        .HasColumnType("datetime(6)")
-                        .HasColumnName("criado_em");
-
-                    b.Property<string>("FotoRef")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)")
-                        .HasColumnName("foto_ref");
-
-                    b.Property<string>("IdSinistro")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
-                        .HasColumnName("id_sinistro");
-
-                    b.Property<long>("Phash")
-                        .HasColumnType("bigint")
-                        .HasColumnName("phash");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CriadoEm")
-                        .HasDatabaseName("ix_imagem_hashes_criado_em");
-
-                    b.HasIndex("IdSinistro", "FotoRef")
-                        .IsUnique()
-                        .HasDatabaseName("ux_imagem_hashes_sinistro_foto");
-
-                    b.ToTable("imagem_hashes", (string)null);
                 });
 
             modelBuilder.Entity("Antifraude.Infra.Persistencia.SinistroProcessado", b =>

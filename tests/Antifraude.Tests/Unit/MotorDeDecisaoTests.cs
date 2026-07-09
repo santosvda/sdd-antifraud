@@ -70,16 +70,49 @@ public sealed class MotorDeDecisaoTests
     }
 
     [Fact]
-    public async Task Sinais_faltantes_geram_fail_open_com_dados_incompletos()
+    public async Task Provider_nao_avaliado_gera_fail_open_com_dados_incompletos()
     {
-        var sinistro = new Sinistro(Guid.NewGuid(), "SIN-2", Sinais: []);
+        var naoAvaliado = new ResultadoScore(
+            Score: null, CoberturaParcial: false, SinaisUsados: [], SinaisAusentes: ["velocity"],
+            MotivoNaoAvaliado: "Cobertura abaixo do piso: 1 de 3 sinais presentes.", AtributosProibidosFiltrados: []);
+        var motor = new MotorDeDecisao(new FakeConfigRepository(FakeConfigRepository.ConfigPadrao), new FakeScoreProvider(resultado: naoAvaliado));
 
-        var r = await Motor(score: 90).AvaliarAsync(sinistro);
+        var r = await motor.AvaliarAsync(ComSinais());
 
         r.Caso.Estado.Should().Be(EstadoDoCaso.PendenteRevisaoManual);
         r.Caso.DadosIncompletos.Should().BeTrue();
         r.Caso.Score.Should().BeNull("não se assume score baixo nem alto por omissão");
-        r.Auditoria.Causa.Should().Contain("faltantes");
+        r.Auditoria.Causa.Should().Contain("Cobertura abaixo do piso");
+    }
+
+    [Fact]
+    public async Task Cobertura_parcial_pontua_e_marca_caso_e_auditoria()
+    {
+        var parcial = new ResultadoScore(
+            Score: 100, CoberturaParcial: true, SinaisUsados: ["reuso_imagem", "imei_serie_divergente"],
+            SinaisAusentes: ["velocity"], MotivoNaoAvaliado: null, AtributosProibidosFiltrados: []);
+        var motor = new MotorDeDecisao(new FakeConfigRepository(FakeConfigRepository.ConfigPadrao), new FakeScoreProvider(resultado: parcial));
+
+        var r = await motor.AvaliarAsync(ComSinais());
+
+        r.Caso.Estado.Should().Be(EstadoDoCaso.RoteadoParaRevisao);
+        r.Caso.Score.Should().Be(100);
+        r.Caso.CoberturaParcial.Should().BeTrue();
+        r.Auditoria.CoberturaParcial.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Atributo_proibido_filtrado_vira_evento_de_conformidade_na_auditoria()
+    {
+        var comProibido = new ResultadoScore(
+            Score: 50, CoberturaParcial: false, SinaisUsados: ["reuso_imagem", "imei_serie_divergente", "velocity"],
+            SinaisAusentes: [], MotivoNaoAvaliado: null, AtributosProibidosFiltrados: ["idade"]);
+        var motor = new MotorDeDecisao(new FakeConfigRepository(FakeConfigRepository.ConfigPadrao), new FakeScoreProvider(resultado: comProibido));
+
+        var r = await motor.AvaliarAsync(ComSinais());
+
+        r.Caso.Estado.Should().Be(EstadoDoCaso.RoteadoParaRevisao);
+        r.Auditoria.Causa.Should().Contain("Atributos proibidos filtrados").And.Contain("idade");
     }
 
     [Fact]

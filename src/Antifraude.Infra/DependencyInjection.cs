@@ -43,14 +43,18 @@ public static class DependencyInjection
         services.AddScoped<IAuditLogIngestao, AuditLogIngestao>();
         services.AddScoped<ISinistroDedupStore, SinistroDedupStore>();
 
-        // Provider de score: mock sinalizado nesta fundação (fatia 1 troca a implementação).
-        var mockOptions = new MockScoreProviderOptions
+        // Provider de score: motor de regras determinístico (Feature 2.3) no caminho real.
+        // O mock sinalizado permanece disponível atrás de flag para provar o fail-open em dev/teste.
+        var usarMock = bool.TryParse(config["MOCK_SCORE_PROVIDER_INDISPONIVEL"], out var indisponivel) && indisponivel;
+        if (usarMock)
         {
-            SimularIndisponibilidade =
-                bool.TryParse(config["MOCK_SCORE_PROVIDER_INDISPONIVEL"], out var indisponivel) && indisponivel,
-        };
-        services.AddSingleton(mockOptions);
-        services.AddSingleton<IScoreProvider, MockScoreProvider>(); // sem estado por requisição
+            services.AddSingleton(new MockScoreProviderOptions { SimularIndisponibilidade = true });
+            services.AddSingleton<IScoreProvider, MockScoreProvider>();
+        }
+        else
+        {
+            services.AddSingleton<IScoreProvider, MotorDeRegras>(); // puro, sem estado por requisição
+        }
 
         // Pipeline de decisão (Core). Escopo porque depende do repositório scoped.
         services.AddSingleton(TimeProvider.System);
