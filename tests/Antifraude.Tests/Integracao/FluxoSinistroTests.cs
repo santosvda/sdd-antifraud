@@ -1,10 +1,6 @@
 using System.Net;
-using System.Net.Http.Json;
-using System.Text.Json;
-using Antifraude.Core.Decisao;
 using Antifraude.Core.Dominio;
 using Antifraude.Core.Portas;
-using Antifraude.Infra.Mensageria;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -14,60 +10,27 @@ namespace Antifraude.Tests.Integracao;
 [Collection(IntegrationCollection.Nome)]
 public sealed class FluxoSinistroTests(IntegrationFixture fixture)
 {
+    /// <summary>
+    /// Payload completo com identificadores ÚNICOS por chamada — evita colisão de
+    /// reuso de imagem/velocity entre testes que compartilham o mesmo MySQL.
+    /// </summary>
     private static object PayloadCompleto(string idSinistro) => new
     {
         idSinistro,
-        apolice = "AP-1001",
-        aparelho = new { imei = "356789101112131", numeroSerie = "SN-42" },
-        fotos = new[] { "img://repo/1", "img://repo/2" },
-        metadados = new { abertoEm = DateTimeOffset.UtcNow, canal = "app", idCliente = "CLI-9" },
+        apolice = $"AP-{idSinistro}",
+        aparelho = new { imei = $"35{Guid.NewGuid():N}"[..15], numeroSerie = $"SN-{idSinistro}" },
+        fotos = new[] { $"img://repo/{idSinistro}/1", $"img://repo/{idSinistro}/2" },
+        metadados = new { abertoEm = DateTimeOffset.UtcNow, canal = "app", idCliente = $"CLI-{idSinistro}" },
     };
 
-    /// <summary>Consome UMA mensagem da fila principal e a processa como o Worker faria.</summary>
-    private static async Task<Caso?> ProcessarUmaAsync(IServiceProvider sp, Guid caseId)
-    {
-        for (var tentativa = 0; tentativa < 5; tentativa++)
-        {
-            using var scope = sp.CreateScope();
-            var s = scope.ServiceProvider;
-            var queue = s.GetRequiredService<ISinistroQueue>();
-            var motor = s.GetRequiredService<MotorDeDecisao>();
-            var casos = s.GetRequiredService<ICaseRepository>();
-            var auditoria = s.GetRequiredService<IAuditLog>();
+    private static Task<Caso?> ProcessarUmaAsync(IServiceProvider sp, Guid caseId) =>
+        WorkerSimulado.ProcessarUmaAsync(sp, caseId);
 
-            foreach (var recebido in await queue.ReceiveAsync())
-            {
-                var resultado = await motor.AvaliarAsync(recebido.Sinistro);
-                await casos.SalvarAsync(resultado.Caso);
-                await auditoria.RegistrarAsync(resultado.Auditoria);
-                await queue.DeleteAsync(recebido.ReceiptHandle);
-            }
-
-            var caso = await casos.ObterPorIdAsync(caseId);
-            if (caso is not null)
-            {
-                return caso;
-            }
-        }
-
-        return null;
-    }
-
-    private static async Task<(HttpStatusCode Status, Guid CaseId)> PostarAsync(HttpClient client, object body)
-    {
-        var resp = await client.PostAsJsonAsync("/sinistros", body);
-        Guid caseId = default;
-        if (resp.StatusCode == HttpStatusCode.Accepted)
-        {
-            var json = await resp.Content.ReadAsStringAsync();
-            caseId = JsonDocument.Parse(json).RootElement.GetProperty("caseId").GetGuid();
-        }
-
-        return (resp.StatusCode, caseId);
-    }
+    private static Task<(HttpStatusCode Status, Guid CaseId)> PostarAsync(HttpClient client, object body) =>
+        WorkerSimulado.PostarAsync(client, body);
 
     [Fact]
-    public async Task Fumaca_post_sinistro_real_sem_sinais_vira_pendente_revisao_manual()
+    public async Task Fumaca_post_sinistro_real_com_coleta_ganha_score_e_roteia_para_revisao()
     {
         await using var factory = new AntifraudeApiFactory(fixture);
         var client = factory.CreateClient();
@@ -77,11 +40,11 @@ public sealed class FluxoSinistroTests(IntegrationFixture fixture)
 
         var caso = await ProcessarUmaAsync(factory.Services, caseId);
 
-        // Sem coleta de sinais (2.2 ainda não existe), o fail-open roteia para revisão manual.
+        // Com a coleta de sinais (2.2), o payload completo produz sinais calculados e
+        // o caso segue o fluxo normal de score — sempre para revisão humana.
         caso.Should().NotBeNull();
-        caso!.Estado.Should().Be(EstadoDoCaso.PendenteRevisaoManual);
-        caso.Score.Should().BeNull();
-        caso.Faixa.Should().Be(Faixa.Indeterminado);
+        caso!.Estado.Should().Be(EstadoDoCaso.RoteadoParaRevisao);
+        caso.Score.Should().NotBeNull("os 3 sinais foram calculados");
         caso.PayloadParcial.Should().BeFalse("o payload estava completo");
     }
 

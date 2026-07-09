@@ -1,47 +1,16 @@
-# claim-processing-worker Specification
+# claim-processing-worker — Delta Spec
 
-## Purpose
-
-Processamento assíncrono do sinistro: o `Worker` consome mensagens do SQS, coleta os 3 sinais de risco (feature 2.2), obtém o score via `IScoreProvider`, persiste o caso no MySQL com a auditoria correspondente e roteia todo caso para revisão humana. Nenhuma ação final é automática e o fluxo é fail-open.
-
-## Requirements
-
-### Requirement: Consumo assíncrono da fila
-
-O `Worker` SHALL rodar como `BackgroundService`, consumir mensagens do SQS, e processar cada sinistro de forma independente da API. API e Worker MUST NOT se chamar diretamente — a comunicação ocorre pela fila (entrada) e pelo MySQL (estado).
-
-#### Scenario: Mensagem enfileirada é processada
-
-- **WHEN** uma mensagem de sinistro chega ao SQS
-- **THEN** o Worker a consome, produz um caso persistido no MySQL e registra a auditoria correspondente, correlacionados pelo mesmo `caseId`
-
-### Requirement: Todo caso é roteado para revisão humana
-
-O Worker SHALL sempre produzir um caso roteado para uma fila humana (normal ou reforçada). Nenhuma ação final sobre o sinistro é automática; o sistema MUST NOT negar, aprovar ou bloquear o sinistro em nenhum ramo.
-
-#### Scenario: Caso de risco alto vai para fila reforçada sem bloquear
-
-- **WHEN** o `IScoreProvider` indica risco alto para um sinistro
-- **THEN** o caso é roteado para a fila reforçada e o sinistro segue seu curso — não há estado que negue, aprove ou bloqueie
-
-### Requirement: Score obtido através de porta abstrata
-
-O Worker SHALL obter o score exclusivamente através da interface `IScoreProvider`. Na fundação a implementação é um mock explícito e **sinalizado como mock**; nenhum valor de score é fabricado em caminho real fora dessa sinalização.
-
-#### Scenario: Provider mock é sinalizado
-
-- **WHEN** o Worker chama o `IScoreProvider` placeholder e persiste o caso
-- **THEN** a auditoria do caso registra que o score veio de um provider mock (versão/sinalização do provider carimbada)
+## MODIFIED Requirements
 
 ### Requirement: Fail-open em falha ou sinal faltante
 
 O Worker SHALL criar o caso no estado `PENDENTE_REVISAO_MANUAL`, registrar a
 falha/ausência na trilha de auditoria e roteá-lo para revisão humana quando o
 `IScoreProvider` lança exceção ou dá timeout, ou quando **nenhum** sinal pôde ser
-calculado (todos indisponíveis). Com indisponibilidade **parcial** (ao menos um sinal
-calculado), o caso SHALL seguir o fluxo normal de score com os sinais disponíveis,
-marcado como dados incompletos. Em nenhum ramo o Worker rejeita, bloqueia ou descarta o
-sinistro; o caso sempre nasce e fica visível.
+calculado (todos indisponíveis). Com indisponibilidade **parcial** (ao menos um sinal calculado), o
+caso SHALL seguir o fluxo normal de score com os sinais disponíveis, marcado como dados
+incompletos. Em nenhum ramo o Worker rejeita, bloqueia ou descarta o sinistro; o caso
+sempre nasce e fica visível.
 
 #### Scenario: Provider indisponível não bloqueia o sinistro
 
@@ -54,6 +23,19 @@ sinistro; o caso sempre nasce e fica visível.
 - **THEN** o Worker calcula o score com os sinais disponíveis, o caso segue o fluxo
   normal de roteamento com `DadosIncompletos` marcado, e a auditoria registra o motivo de
   cada indisponibilidade — sem assumir valor baixo nem alto para o sinal ausente
+
+## REMOVED Requirements
+
+### Requirement: Consumo do payload de sinistro real sem sinais computados
+
+**Reason**: A feature 2.2 (coleta de sinais) passa a existir — o Worker agora computa os
+3 sinais fixos antes da decisão; a premissa "nenhum sinal acompanha o sinistro" deixa de
+valer.
+**Migration**: Substituído pelo requirement "Coleta de sinais antes da decisão" abaixo. O
+fail-open para ausência total de sinais calculáveis e a preservação de `payloadParcial`
+permanecem cobertos pelos novos cenários.
+
+## ADDED Requirements
 
 ### Requirement: Coleta de sinais antes da decisão
 

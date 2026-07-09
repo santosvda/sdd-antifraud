@@ -8,10 +8,18 @@ namespace Antifraude.Infra.Persistencia;
 /// Semeia uma versão ativa inicial da <c>scoring_config</c> (v1) quando a tabela está
 /// vazia. Pesos e limiares vivem no banco — nunca hard-coded no caminho de decisão nem
 /// em env var; estes valores são apenas o ponto de partida governável.
+/// Semeia também a base fake de <c>apolices</c> (fonte do sinal IMEI×série) com
+/// exemplos que cobrem os 3 ramos: confere, diverge e não cadastrado (= apólice ausente).
 /// </summary>
 public static class DbSeeder
 {
     public static async Task SeedAsync(AntifraudeDbContext db, ILogger? logger = null, CancellationToken ct = default)
+    {
+        await SeedScoringConfigAsync(db, logger, ct).ConfigureAwait(false);
+        await SeedApolicesAsync(db, logger, ct).ConfigureAwait(false);
+    }
+
+    private static async Task SeedScoringConfigAsync(AntifraudeDbContext db, ILogger? logger, CancellationToken ct)
     {
         if (await db.ScoringConfigs.AnyAsync(ct).ConfigureAwait(false))
         {
@@ -36,5 +44,21 @@ public static class DbSeeder
         db.ScoringConfigs.Add(v1);
         await db.SaveChangesAsync(ct).ConfigureAwait(false);
         logger?.LogInformation("scoring_config v1 semeada (ativa).");
+    }
+
+    private static async Task SeedApolicesAsync(AntifraudeDbContext db, ILogger? logger, CancellationToken ct)
+    {
+        if (await db.Apolices.AnyAsync(ct).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        db.Apolices.AddRange(
+            // Ramo "confere": aparelho do exemplo canônico da demo.
+            new ApoliceRegistro { Apolice = "AP-2026-0042", Imei = "356938035643809", NumeroSerie = "SN-XYZ-123" },
+            // Ramo "diverge": qualquer sinistro desta apólice com outro IMEI ativa o sinal.
+            new ApoliceRegistro { Apolice = "AP-2026-0001", Imei = "990000862471854", NumeroSerie = "SN-ABC-001" });
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        logger?.LogInformation("apolices de exemplo semeadas (fonte fake da coleta de sinais).");
     }
 }

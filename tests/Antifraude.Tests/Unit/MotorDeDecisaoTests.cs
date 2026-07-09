@@ -8,7 +8,7 @@ namespace Antifraude.Tests.Unit;
 public sealed class MotorDeDecisaoTests
 {
     private static Sinistro ComSinais() =>
-        new(Guid.NewGuid(), "SIN-1", Sinais: [new Sinal("reuso_imagem", 1.0, "mock")]);
+        new(Guid.NewGuid(), "SIN-1", Sinais: [new Sinal("reuso_imagem", ValorSinal.Ativo, "mock")]);
 
     private static MotorDeDecisao Motor(int score = 0, bool provedorCai = false, ScoringConfig? config = null) =>
         new(new FakeConfigRepository(config ?? FakeConfigRepository.ConfigPadrao),
@@ -80,6 +80,40 @@ public sealed class MotorDeDecisaoTests
         r.Caso.DadosIncompletos.Should().BeTrue();
         r.Caso.Score.Should().BeNull("não se assume score baixo nem alto por omissão");
         r.Auditoria.Causa.Should().Contain("faltantes");
+    }
+
+    [Fact]
+    public async Task Indisponibilidade_parcial_segue_para_score_com_dados_incompletos()
+    {
+        var sinistro = new Sinistro(Guid.NewGuid(), "SIN-3", Sinais:
+        [
+            new Sinal("reuso_imagem", ValorSinal.Ativo, "mock"),
+            new Sinal("velocity", ValorSinal.Indisponivel, "mock", Motivo: MotivoIndisponibilidade.FonteIndisponivel),
+        ]);
+
+        var r = await Motor(score: 40).AvaliarAsync(sinistro);
+
+        r.Caso.Estado.Should().Be(EstadoDoCaso.RoteadoParaRevisao, "1 sinal indisponível não é fail-open");
+        r.Caso.Score.Should().Be(40, "o score usa os sinais disponíveis");
+        r.Caso.DadosIncompletos.Should().BeTrue("a indisponibilidade fica visível ao analista");
+    }
+
+    [Fact]
+    public async Task Todos_os_sinais_indisponiveis_e_fail_open_sem_score()
+    {
+        var sinistro = new Sinistro(Guid.NewGuid(), "SIN-4", Sinais:
+        [
+            new Sinal("reuso_imagem", ValorSinal.Indisponivel, "mock", Motivo: MotivoIndisponibilidade.FonteIndisponivel),
+            new Sinal("imei_serie_divergente", ValorSinal.Indisponivel, "mock", Motivo: MotivoIndisponibilidade.DadoAusente),
+            new Sinal("velocity", ValorSinal.Indisponivel, "mock", Motivo: MotivoIndisponibilidade.FonteIndisponivel),
+        ]);
+
+        var r = await Motor(score: 90).AvaliarAsync(sinistro);
+
+        r.Caso.Estado.Should().Be(EstadoDoCaso.PendenteRevisaoManual, "3/3 indisponíveis equivale a não avaliado");
+        r.Caso.Score.Should().BeNull();
+        r.Caso.DadosIncompletos.Should().BeTrue();
+        r.Auditoria.Sinais.Should().HaveCount(3, "os motivos de cada sinal ficam auditados");
     }
 
     [Fact]
